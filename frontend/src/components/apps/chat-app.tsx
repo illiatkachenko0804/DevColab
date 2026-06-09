@@ -1,33 +1,45 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Hash, Plus, Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Hash, Send } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PresenceDot } from "@/components/ui/presence-dot";
 import {
-  channels,
-  currentUser,
-  messagesByChannel,
   userById,
-  users,
-  workspaces,
+  workspaceById,
+  wsChannels,
+  wsMembers,
+  wsMessages,
   type Message,
 } from "@/lib/mock";
 import { cn, relativeTime } from "@/lib/utils";
+import { useOS } from "@/stores/os";
 
 export function ChatApp() {
-  const [activeWs, setActiveWs] = useState(workspaces[0].id);
-  const [activeChannel, setActiveChannel] = useState("c2");
+  const ws = useOS((s) => s.activeWorkspace);
+  const channels = wsChannels(ws);
+  const members = wsMembers(ws);
+  const online = members.filter((u) => u.presence === "online");
+
+  const [activeChannel, setActiveChannel] = useState(channels[0].id);
   const [extra, setExtra] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const channel = channels.find((c) => c.id === activeChannel)!;
-  const thread = [...messagesByChannel(activeChannel), ...extra.filter((m) => m.channelId === activeChannel)];
-  const online = users.filter((u) => u.presence === "online");
+  // Reset selection + local messages when the project changes.
+  useEffect(() => {
+    setActiveChannel(wsChannels(ws)[0].id);
+    setExtra([]);
+  }, [ws]);
+
+  const channel = channels.find((c) => c.id === activeChannel) ?? channels[0];
+  const thread = useMemo(
+    () => [...wsMessages(ws, channel.id), ...extra.filter((m) => m.channelId === channel.id)],
+    [ws, channel.id, extra],
+  );
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -36,49 +48,23 @@ export function ChatApp() {
   const send = () => {
     const body = draft.trim();
     if (!body) return;
-    setExtra((p) => [
-      ...p,
-      { id: `local-${Date.now()}`, channelId: activeChannel, userId: currentUser.id, body, at: new Date().toISOString() },
-    ]);
+    setExtra((p) => [...p, { id: `local-${Date.now()}`, channelId: channel.id, userId: "u1", body, at: new Date().toISOString() }]);
     setDraft("");
-    setTyping(true);
-    setTimeout(() => setTyping(false), 2600);
+    if (online.length > 1) {
+      setTyping(true);
+      setTimeout(() => setTyping(false), 2600);
+    }
   };
+
+  const typer = online.find((u) => u.id !== "u1");
 
   return (
     <div className="flex min-h-0 flex-1">
-      {/* Workspace rail */}
-      <div className="hidden w-16 shrink-0 flex-col items-center gap-2 border-r border-separator bg-sidebar py-3 sm:flex">
-        {workspaces.map((w) => (
-          <button
-            key={w.id}
-            type="button"
-            onClick={() => setActiveWs(w.id)}
-            aria-label={w.name}
-            title={w.name}
-            className={cn(
-              "flex h-11 w-11 cursor-pointer items-center justify-center rounded-[14px] text-sm font-semibold text-white transition",
-              activeWs === w.id ? "ring-2 ring-accent ring-offset-2 ring-offset-sidebar" : "opacity-80 hover:opacity-100",
-            )}
-            style={{ background: w.accent }}
-          >
-            {w.initial}
-          </button>
-        ))}
-        <button
-          type="button"
-          aria-label="New workspace"
-          className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-[14px] border border-dashed border-separator text-faint transition hover:text-foreground"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
-      </div>
-
       {/* Channels sidebar */}
       <div className="hidden w-56 shrink-0 flex-col border-r border-separator bg-sidebar md:flex">
         <div className="border-b border-separator px-4 py-3">
-          <p className="text-sm font-semibold">{workspaces.find((w) => w.id === activeWs)?.name}</p>
-          <p className="text-xs text-muted">{users.length} members</p>
+          <p className="text-sm font-semibold">{workspaceById(ws).name}</p>
+          <p className="text-xs text-muted">{members.length} members</p>
         </div>
         <nav className="flex-1 overflow-y-auto p-2 no-scrollbar">
           <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Channels</p>
@@ -117,7 +103,6 @@ export function ChatApp() {
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator px-4">
           <Hash className="h-4 w-4 text-muted" />
           <span className="font-semibold">{channel.name}</span>
-          <span className="hidden text-sm text-muted sm:inline">· macOS UI polish & shipping</span>
           <div className="ml-auto flex -space-x-2">
             {online.slice(0, 4).map((u) => (
               <Avatar key={u.id} name={u.name} size={24} ring />
@@ -126,15 +111,18 @@ export function ChatApp() {
         </div>
 
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4 no-scrollbar">
+          {thread.length === 0 && (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted">
+              <Hash className="h-8 w-8 opacity-40" />
+              <p className="text-sm">This is the start of #{channel.name}.</p>
+            </div>
+          )}
           {thread.map((m, i) => {
             const author = userById(m.userId);
-            const prev = thread[i - 1];
-            const grouped = prev?.userId === m.userId;
+            const grouped = thread[i - 1]?.userId === m.userId;
             return (
               <div key={m.id} className={cn("flex gap-3", grouped && "mt-[-8px]")}>
-                <div className="w-9 shrink-0">
-                  {!grouped && <Avatar name={author.name} size={36} />}
-                </div>
+                <div className="w-9 shrink-0">{!grouped && <Avatar name={author.name} size={36} />}</div>
                 <div className="min-w-0 flex-1">
                   {!grouped && (
                     <div className="flex items-baseline gap-2">
@@ -150,24 +138,14 @@ export function ChatApp() {
           })}
 
           <AnimatePresence>
-            {typing && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center gap-2 pl-12 text-sm text-muted"
-              >
+            {typing && typer && (
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-2 pl-12 text-sm text-muted">
                 <span className="flex gap-1">
                   {[0, 1, 2].map((d) => (
-                    <motion.span
-                      key={d}
-                      className="h-1.5 w-1.5 rounded-full bg-muted"
-                      animate={{ y: [0, -3, 0] }}
-                      transition={{ repeat: Infinity, duration: 0.9, delay: d * 0.15 }}
-                    />
+                    <motion.span key={d} className="h-1.5 w-1.5 rounded-full bg-muted" animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 0.9, delay: d * 0.15 }} />
                   ))}
                 </span>
-                Maria Kovac is typing…
+                {typer.name} is typing…
               </motion.div>
             )}
           </AnimatePresence>

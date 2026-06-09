@@ -183,6 +183,14 @@ body {
   outline-offset: 2px;
 }
 
+/* Text fields manage their own focus affordance via their bordered wrapper
+   (focus-within:border-accent), so suppress the extra outline to avoid a
+   double blue border. */
+:where(input, textarea, select):focus,
+:where(input, textarea, select):focus-visible {
+  outline: none;
+}
+
 ::selection {
   background: color-mix(in srgb, var(--accent) 28%, transparent);
 }

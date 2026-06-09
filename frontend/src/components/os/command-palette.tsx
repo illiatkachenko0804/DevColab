@@ -5,7 +5,7 @@ import { CornerDownLeft, Hash, Search } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { APPS } from "@/lib/apps";
-import { channels, users } from "@/lib/mock";
+import { wsChannels, wsMembers } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 import { useOS } from "@/stores/os";
 
@@ -22,6 +22,7 @@ export function CommandPalette() {
   const open = useOS((s) => s.commandOpen);
   const setOpen = useOS((s) => s.setCommandOpen);
   const openApp = useOS((s) => s.openApp);
+  const ws = useOS((s) => s.activeWorkspace);
   const { setTheme, resolvedTheme } = useTheme();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -36,7 +37,7 @@ export function CommandPalette() {
       run: () => openApp(a.id),
       icon: <a.icon className="h-4 w-4" style={{ color: a.accent }} />,
     }));
-    const channelItems: Item[] = channels.map((c) => ({
+    const channelItems: Item[] = wsChannels(ws).map((c) => ({
       id: `ch-${c.id}`,
       label: `#${c.name}`,
       sub: "Channel",
@@ -44,7 +45,7 @@ export function CommandPalette() {
       run: () => openApp("chat"),
       icon: <Hash className="h-4 w-4 text-muted" />,
     }));
-    const peopleItems: Item[] = users.map((u) => ({
+    const peopleItems: Item[] = wsMembers(ws).map((u) => ({
       id: `p-${u.id}`,
       label: u.name,
       sub: u.title,
@@ -61,7 +62,7 @@ export function CommandPalette() {
       },
     ];
     return [...appItems, ...channelItems, ...peopleItems, ...actions];
-  }, [openApp, setTheme, resolvedTheme]);
+  }, [openApp, setTheme, resolvedTheme, ws]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

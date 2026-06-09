@@ -3,25 +3,195 @@
 /* Class-based dark mode (driven by next-themes attribute="class"). */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ===========================================================================
+   macOS design tokens
+   Neutral Apple grays for chrome + one system-blue accent. Per-app accent
+   colors give the dock its "real OS" identity. Light + dark are tuned to
+   match macOS Sonoma/Tahoe vibrancy.
+   ========================================================================== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --background: #e9e9ec; /* desktop base behind the wallpaper */
+  --surface: #ffffff; /* opaque window/card surface */
+  --glass: rgba(255, 255, 255, 0.72); /* vibrancy material */
+  --glass-strong: rgba(255, 255, 255, 0.85);
+  --sidebar: rgba(246, 246, 248, 0.8);
+
+  /* Text */
+  --foreground: #1d1d1f; /* Apple near-black, softer than pure #000 */
+  --muted: #6e6e73; /* secondary label */
+  --faint: #8e8e93; /* tertiary label */
+
+  /* Lines & states */
+  --separator: rgba(0, 0, 0, 0.09);
+  --hover: rgba(0, 0, 0, 0.045);
+  --active: rgba(0, 0, 0, 0.08);
+
+  /* Interaction accent */
+  --accent: #007aff;
+  --accent-foreground: #ffffff;
+  --ring: rgba(0, 122, 255, 0.45);
+
+  /* Per-app accents */
+  --app-chat: #0a84ff;
+  --app-projects: #ff9f0a;
+  --app-snippets: #bf5af2;
+  --app-activity: #30d158;
+  --app-members: #64d2ff;
+  --app-settings: #8e8e93;
+
+  /* Semantic */
+  --success: #28a745;
+  --warning: #e08600;
+  --danger: #e0352b;
+  --info: #0a84ff;
+
+  /* Traffic lights (exact macOS hues) */
+  --tl-red: #ff5f57;
+  --tl-yellow: #febc2e;
+  --tl-green: #28c840;
+  --tl-idle: #c8c8cc;
+
+  /* Elevation */
+  --shadow-window: 0 18px 50px rgba(0, 0, 0, 0.18), 0 4px 14px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-dock: 0 12px 32px rgba(0, 0, 0, 0.22);
+  --shadow-pop: 0 10px 38px rgba(0, 0, 0, 0.16);
+
+  /* Fonts */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+    system-ui, sans-serif;
+  --font-code: "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    monospace;
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #161617;
+  --surface: #2c2c2e;
+  --glass: rgba(40, 40, 43, 0.68);
+  --glass-strong: rgba(40, 40, 43, 0.82);
+  --sidebar: rgba(28, 28, 30, 0.78);
+
+  --foreground: #f5f5f7;
+  --muted: #98989d;
+  --faint: #8e8e93;
+
+  --separator: rgba(255, 255, 255, 0.1);
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(255, 255, 255, 0.1);
+
+  --accent: #0a84ff;
+  --accent-foreground: #ffffff;
+  --ring: rgba(10, 132, 255, 0.55);
+
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+  --info: #64d2ff;
+
+  --tl-idle: #565659;
+
+  --shadow-window: 0 22px 60px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+  --shadow-dock: 0 14px 38px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 12px 44px rgba(0, 0, 0, 0.5);
 }
 
+/* Expose tokens to Tailwind utilities (bg-surface, text-muted, border-separator…) */
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-sidebar: var(--sidebar);
+
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+
+  --color-separator: var(--separator);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+
+  --color-chat: var(--app-chat);
+  --color-projects: var(--app-projects);
+  --color-snippets: var(--app-snippets);
+  --color-activity: var(--app-activity);
+  --color-members: var(--app-members);
+  --color-settings: var(--app-settings);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+
+  --color-tl-red: var(--tl-red);
+  --color-tl-yellow: var(--tl-yellow);
+  --color-tl-green: var(--tl-green);
+  --color-tl-idle: var(--tl-idle);
+
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+
+  --radius-window: 12px;
+  --radius-card: 10px;
+
+  --shadow-window: var(--shadow-window);
+  --shadow-card: var(--shadow-card);
+  --shadow-dock: var(--shadow-dock);
+  --shadow-pop: var(--shadow-pop);
+}
+
+/* Vibrancy material: frosted translucent surface. */
+@utility glass {
+  background-color: var(--glass);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+}
+@utility glass-strong {
+  background-color: var(--glass-strong);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Consistent, visible focus ring for keyboard users only. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }

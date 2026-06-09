@@ -1,12 +1,13 @@
 "use client";
 
+import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 
-export function ThemeToggle() {
+export function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-
   useEffect(() => setMounted(true), []);
 
   const isDark = resolvedTheme === "dark";
@@ -14,12 +15,25 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      aria-label="Toggle theme"
+      suppressHydrationWarning
+      aria-label={
+        mounted
+          ? isDark
+            ? "Switch to light mode"
+            : "Switch to dark mode"
+          : "Toggle theme"
+      }
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 text-lg transition hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/10"
+      className={cn(
+        "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-foreground/70 transition-colors hover:bg-hover hover:text-foreground",
+        className,
+      )}
     >
-      {/* Avoid hydration mismatch: render a stable glyph until mounted */}
-      {mounted ? (isDark ? "☀️" : "🌙") : "·"}
+      {mounted && isDark ? (
+        <Sun className="h-[18px] w-[18px]" />
+      ) : (
+        <Moon className="h-[18px] w-[18px]" />
+      )}
     </button>
   );
 }

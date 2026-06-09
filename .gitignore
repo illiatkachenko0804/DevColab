@@ -1,0 +1,18 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS / IDE
+.DS_Store
+.idea/
+*.iml
+.vscode/
+
+# Node (frontend keeps its own .gitignore too)
+node_modules/
+
+# Gradle / Java build output
+backend/.gradle/
+backend/build/
+.DS_Store

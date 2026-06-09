@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/2uha/.claude/**)",
+      "Read(//Users/2uha/.claude/plugins/**)",
+      "Bash(echo \"Files:\" && cat /tmp/skills-tmp/skills/frontend-design/SKILL.md | head -30 && echo \"...\" && echo \"Total lines:\" && wc -l /tmp/skills-tmp/skills/frontend-design/SKILL.md)",
+      "Bash(mkdir -p ~/.claude/skills/frontend-design)",
+      "Bash(cp /tmp/skills-tmp/skills/frontend-design/SKILL.md /tmp/skills-tmp/skills/frontend-design/LICENSE.txt ~/.claude/skills/frontend-design/)",
+      "Bash(rm -rf /tmp/skills-tmp)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install *)",
+      "Bash(uipro --version)",
+      "Read(//usr/local/opt/**)",
+      "Read(//usr/local/Cellar/**)",
+      "Read(//Users/2uha/.nvm/versions/**)",
+      "Bash(/opt/homebrew/bin/node --version)",
+      "Bash(/opt/homebrew/bin/npm --version)",
+      "Read(//opt/homebrew/lib/node_modules/npm/bin/**)",
+      "Bash(/opt/homebrew/bin/node /opt/homebrew/lib/node_modules/npm/bin/npm-cli.js --version)",
+      "Bash(/opt/homebrew/bin/node /opt/homebrew/lib/node_modules/npm/bin/npm-cli.js install -g uipro-cli)",
+      "Bash(/opt/homebrew/bin/node /opt/homebrew/lib/node_modules/uipro-cli/dist/index.js --help)",
+      "Bash(/opt/homebrew/bin/node /opt/homebrew/lib/node_modules/uipro-cli/dist/index.js init --help)",
+      "Bash(/opt/homebrew/bin/node /opt/homebrew/lib/node_modules/uipro-cli/dist/index.js init --ai claude)"
+    ]
+  }
+}

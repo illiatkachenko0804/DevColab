@@ -21,6 +21,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarClock, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Avatar } from "@/components/ui/avatar";
 import { userById, wsBoard, type Column, type Task } from "@/lib/mock";
 import { cn } from "@/lib/utils";
@@ -85,7 +86,10 @@ export function KanbanApp() {
   const board = wsBoard(ws);
   const [columns, setColumns] = useState<Column[]>(board.columns);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  useEffect(() => setMounted(true), []);
 
   // Reset board when the project changes.
   useEffect(() => {
@@ -147,7 +151,13 @@ export function KanbanApp() {
               <ColumnView key={c.id} column={c} tasks={tasks} />
             ))}
           </div>
-          <DragOverlay>{activeId && tasks[activeId] ? <TaskCard task={tasks[activeId]} dragging /> : null}</DragOverlay>
+          {/* Portal to <body> so the overlay isn't offset by the window's CSS transform. */}
+          {mounted
+            ? createPortal(
+                <DragOverlay>{activeId && tasks[activeId] ? <TaskCard task={tasks[activeId]} dragging /> : null}</DragOverlay>,
+                document.body,
+              )
+            : null}
         </DndContext>
       </div>
     </div>

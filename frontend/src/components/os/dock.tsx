@@ -8,18 +8,31 @@ import {
   type MotionValue,
 } from "framer-motion";
 import { useRef } from "react";
-import { APPS, type AppMeta } from "@/lib/apps";
+import { APPS, type AppId, type AppMeta } from "@/lib/apps";
+import { wsChannels, wsNotifications } from "@/lib/mock";
 import { useOS } from "@/stores/os";
 
 const ICON = 46; // base footprint
 const MAX = 70; // magnified footprint
 const RANGE = 120;
 
+/** Unread count shown on a dock icon, scoped to the active workspace. */
+function badgeFor(id: AppId, ws: string): number {
+  if (id === "chat") return wsChannels(ws).reduce((sum, c) => sum + c.unread, 0);
+  const notifApp = ({ projects: "projects", snippets: "snippets", members: "members" } as const)[
+    id as "projects" | "snippets" | "members"
+  ];
+  if (!notifApp) return 0;
+  return wsNotifications(ws).filter((n) => !n.read && n.app === notifApp).length;
+}
+
 function DockIcon({ app, mouseX }: { app: AppMeta; mouseX: MotionValue<number> }) {
   const ref = useRef<HTMLDivElement>(null);
   const openApp = useOS((s) => s.openApp);
   const windows = useOS((s) => s.windows);
+  const ws = useOS((s) => s.activeWorkspace);
   const running = windows.some((w) => w.app === app.id);
+  const badge = badgeFor(app.id, ws);
   const Icon = app.icon;
 
   const distance = useTransform(mouseX, (val) => {
@@ -50,6 +63,11 @@ function DockIcon({ app, mouseX }: { app: AppMeta; mouseX: MotionValue<number> }
           >
             <Icon className="h-1/2 w-1/2 text-white drop-shadow-sm" strokeWidth={2} />
           </span>
+          {badge > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-danger px-1 text-[10px] font-bold tabular-nums text-white shadow-md ring-2 ring-white/40">
+              {badge > 99 ? "99+" : badge}
+            </span>
+          )}
         </motion.button>
       </motion.div>
       <span className="mt-1 h-1 w-1 rounded-full" style={{ background: running ? "var(--foreground)" : "transparent" }} />

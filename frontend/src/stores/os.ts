@@ -75,8 +75,8 @@ export const useOS = create<OSState>((set) => ({
   notifOpen: false,
   accent: "#007aff",
 
-  login: () =>
-    set({ loggedIn: true, windows: [spawn("chat", 0, 2)], zTop: 2 }),
+  // Land on the desktop (no windows) — the user picks an app from the dock.
+  login: () => set({ loggedIn: true, windows: [], zTop: 1 }),
   logout: () =>
     set({
       loggedIn: false,

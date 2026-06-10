@@ -4,6 +4,7 @@ export interface AuthUser {
   id: string;
   email: string;
   displayName: string;
+  devTag: string;
   avatarUrl: string | null;
   emailVerified: boolean;
 }
@@ -39,6 +40,13 @@ export function login(email: string, password: string): Promise<AuthUser> {
 
 export function logout(): Promise<void> {
   return api("/api/auth/logout", { method: "POST" });
+}
+
+export function updateProfile(body: {
+  displayName?: string;
+  devTag?: string;
+}): Promise<AuthUser> {
+  return api("/api/profile", { method: "PATCH", body: JSON.stringify(body) });
 }
 
 export function fetchMe(): Promise<AuthUser> {

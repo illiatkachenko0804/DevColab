@@ -42,7 +42,7 @@ export function MenuBar() {
   };
 
   const displayName = user?.displayName ?? "Account";
-  const handle = user?.email ?? "";
+  const handle = user?.devTag ? `@${user.devTag}` : (user?.email ?? "");
 
   const [projOpen, setProjOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);

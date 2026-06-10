@@ -1,10 +1,10 @@
 "use client";
 
-import { Bell, Monitor, Moon, Paintbrush, Sun, User, Users } from "lucide-react";
+import { Bell, Check, Monitor, Moon, Paintbrush, Sun, User, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { currentUser } from "@/lib/mock";
+import { authErrorMessage, updateProfile } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { useOS } from "@/stores/os";
 
@@ -61,8 +61,32 @@ export function SettingsApp() {
   const accent = useOS((s) => s.accent);
   const setAccent = useOS((s) => s.setAccent);
   const user = useOS((s) => s.user);
-  const name = user?.displayName ?? currentUser.name;
-  const email = user?.email ?? "illia@devcollab.app";
+  const setSession = useOS((s) => s.setSession);
+  const email = user?.email ?? "";
+
+  const [pName, setPName] = useState(user?.displayName ?? "");
+  const [pTag, setPTag] = useState(user?.devTag ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const dirty = pName !== (user?.displayName ?? "") || pTag !== (user?.devTag ?? "");
+
+  const saveProfile = async () => {
+    setSaving(true);
+    setProfileError(null);
+    setSaved(false);
+    try {
+      const updated = await updateProfile({ displayName: pName.trim(), devTag: pTag.trim() });
+      setSession(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setProfileError(authErrorMessage(e).message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const themeOptions = [
     { id: "light", label: "Light", icon: Sun },
@@ -98,15 +122,58 @@ export function SettingsApp() {
           {cat === "profile" && (
             <section>
               <div className="mb-6 flex items-center gap-4">
-                <Avatar name={name} size={64} />
+                <Avatar name={pName || email} size={64} />
                 <div>
-                  <p className="text-lg font-semibold">{name}</p>
-                  <p className="text-sm text-muted">{email}</p>
+                  <p className="text-lg font-semibold">{pName || "Your name"}</p>
+                  <p className="text-sm text-muted">@{pTag || "devtag"}</p>
                 </div>
               </div>
-              <Row label="Display name"><input defaultValue={name} className="w-56 rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent" /></Row>
-              <Row label="Title"><input defaultValue={currentUser.title} className="w-56 rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent" /></Row>
-              <Row label="Email" desc="Used for sign-in and notifications"><span className="text-sm text-muted">{email}</span></Row>
+
+              {profileError && (
+                <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  {profileError}
+                </div>
+              )}
+
+              <Row label="Display name">
+                <input
+                  value={pName}
+                  onChange={(e) => setPName(e.target.value)}
+                  maxLength={100}
+                  className="w-56 rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent"
+                />
+              </Row>
+              <Row label="DevTag" desc="Your unique @handle">
+                <div className="flex w-56 items-center rounded-lg border border-separator bg-surface focus-within:border-accent">
+                  <span className="pl-3 text-sm text-muted">@</span>
+                  <input
+                    value={pTag}
+                    onChange={(e) => setPTag(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                    maxLength={30}
+                    placeholder="devtag"
+                    className="w-full bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-faint"
+                  />
+                </div>
+              </Row>
+              <Row label="Email" desc="Used for sign-in and notifications">
+                <span className="text-sm text-muted">{email}</span>
+              </Row>
+
+              <div className="mt-5 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={saveProfile}
+                  disabled={saving || !dirty || pTag.length < 3 || pName.trim().length < 1}
+                  className="cursor-pointer rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : "Save changes"}
+                </button>
+                {saved && (
+                  <span className="flex items-center gap-1 text-sm text-success">
+                    <Check className="h-4 w-4" /> Saved
+                  </span>
+                )}
+              </div>
             </section>
           )}
 

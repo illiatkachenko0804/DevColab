@@ -25,16 +25,19 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final UserRepository users;
     private final JwtService jwt;
     private final CookieService cookies;
+    private final AuthService authService;
     private final String frontendUrl;
 
     public OAuth2SuccessHandler(
             UserRepository users,
             JwtService jwt,
             CookieService cookies,
+            AuthService authService,
             @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
         this.users = users;
         this.jwt = jwt;
         this.cookies = cookies;
+        this.authService = authService;
         this.frontendUrl = frontendUrl;
     }
 
@@ -61,6 +64,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         user.setEmail(resolvedEmail);
         if (user.getDisplayName() == null) {
             user.setDisplayName(name != null ? name : login);
+        }
+        if (user.getDevTag() == null) {
+            user.setDevTag(authService.uniqueDevTag(login != null ? login : resolvedEmail));
         }
         user.setAvatarUrl(avatar);
         user.setEmailVerified(true); // GitHub identities are pre-verified

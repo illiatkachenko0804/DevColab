@@ -6,6 +6,7 @@ public record UserResponse(
         String id,
         String email,
         String displayName,
+        String devTag,
         String avatarUrl,
         boolean emailVerified) {
 
@@ -14,6 +15,7 @@ public record UserResponse(
                 u.getId().toString(),
                 u.getEmail(),
                 u.getDisplayName(),
+                u.getDevTag(),
                 u.getAvatarUrl(),
                 u.isEmailVerified());
     }

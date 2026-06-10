@@ -40,6 +40,10 @@ public class User {
     @Column(name = "display_name", nullable = false)
     private String displayName;
 
+    /** Unique @handle, e.g. "illia". */
+    @Column(name = "dev_tag", nullable = false, unique = true)
+    private String devTag;
+
     @Column(name = "avatar_url")
     private String avatarUrl;
 

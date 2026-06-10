@@ -63,15 +63,16 @@ function ColumnView({ column, tasks }: { column: Column; tasks: Record<string, T
   // Guard the single render where workspace just changed (old ids, new task map).
   const ids = column.taskIds.filter((id) => tasks[id]);
   return (
-    <div className="flex w-72 shrink-0 flex-col">
-      <div className="mb-2 flex items-center gap-2 px-1">
+    <div className="flex h-full min-w-[250px] flex-1 flex-col">
+      <div className="mb-2 flex shrink-0 items-center gap-2 px-1">
         <span className="h-2 w-2 rounded-full" style={{ background: accent }} />
         <h3 className="text-sm font-semibold">{column.name}</h3>
         <span className="rounded-full bg-hover px-1.5 text-xs text-muted">{column.taskIds.length}</span>
         <button type="button" aria-label="Add task" className="ml-auto cursor-pointer text-faint hover:text-foreground"><Plus className="h-4 w-4" /></button>
       </div>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} className={cn("flex min-h-32 flex-1 flex-col gap-2 rounded-xl border border-dashed p-2 transition-colors", isOver ? "border-accent bg-accent/5" : "border-separator/70")}>
+        {/* Full-height border; cards scroll inside the column, not the whole board. */}
+        <div ref={setNodeRef} className={cn("flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-xl border border-dashed p-2 no-scrollbar transition-colors", isOver ? "border-accent bg-accent/5" : "border-separator/70")}>
           {ids.map((id) => (
             <SortableCard key={id} task={tasks[id]} />
           ))}
@@ -144,7 +145,7 @@ export function KanbanApp() {
           <Plus className="h-4 w-4" /> New task
         </button>
       </div>
-      <div className="flex-1 overflow-x-auto p-4 no-scrollbar">
+      <div className="min-h-0 flex-1 overflow-x-auto p-4 no-scrollbar">
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e: DragStartEvent) => setActiveId(e.active.id as string)} onDragOver={onDragOver} onDragEnd={onDragEnd}>
           <div className="flex h-full gap-4">
             {columns.map((c) => (

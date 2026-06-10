@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AppId } from "@/lib/apps";
+import type { AuthUser } from "@/lib/auth";
 
 export interface WinState {
   app: AppId;
@@ -26,6 +27,7 @@ export const MIN_H = 320;
 
 interface OSState {
   loggedIn: boolean;
+  user: AuthUser | null;
   activeWorkspace: string;
   windows: WinState[];
   zTop: number;
@@ -33,7 +35,7 @@ interface OSState {
   notifOpen: boolean;
   accent: string;
 
-  login: () => void;
+  setSession: (user: AuthUser) => void;
   logout: () => void;
   setWorkspace: (id: string) => void;
   setAccent: (c: string) => void;
@@ -68,6 +70,7 @@ function spawn(app: AppId, index: number, z: number): WinState {
 
 export const useOS = create<OSState>((set) => ({
   loggedIn: false,
+  user: null,
   activeWorkspace: "w1",
   windows: [],
   zTop: 1,
@@ -76,10 +79,11 @@ export const useOS = create<OSState>((set) => ({
   accent: "#007aff",
 
   // Land on the desktop (no windows) — the user picks an app from the dock.
-  login: () => set({ loggedIn: true, windows: [], zTop: 1 }),
+  setSession: (user) => set({ loggedIn: true, user, windows: [], zTop: 1 }),
   logout: () =>
     set({
       loggedIn: false,
+      user: null,
       windows: [],
       zTop: 1,
       commandOpen: false,

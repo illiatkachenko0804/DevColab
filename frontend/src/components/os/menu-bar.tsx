@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { appMeta } from "@/lib/apps";
-import { currentUser, workspaceById, workspaces, wsMembers, wsNotifications } from "@/lib/mock";
+import { logout as apiLogout } from "@/lib/auth";
+import { workspaceById, workspaces, wsMembers, wsNotifications } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 import { focusedApp, useOS } from "@/stores/os";
 
@@ -27,7 +28,20 @@ export function MenuBar() {
   const toggleCommand = useOS((s) => s.toggleCommand);
   const toggleNotif = useOS((s) => s.toggleNotif);
   const logout = useOS((s) => s.logout);
+  const user = useOS((s) => s.user);
   const now = useClock();
+
+  const signOut = async () => {
+    try {
+      await apiLogout();
+    } catch {
+      /* ignore — clear locally regardless */
+    }
+    logout();
+  };
+
+  const displayName = user?.displayName ?? "Account";
+  const handle = user?.email ?? "";
 
   const [projOpen, setProjOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
@@ -145,15 +159,15 @@ export function MenuBar() {
             aria-label="Account menu"
             className="ml-1 flex cursor-pointer items-center rounded-full transition hover:opacity-90"
           >
-            <Avatar name={currentUser.name} size={20} />
+            <Avatar name={displayName} size={20} />
           </button>
           {acctOpen && (
             <div className="glass-strong absolute right-0 top-7 w-56 overflow-hidden rounded-xl border border-separator p-1 shadow-[var(--shadow-pop)]">
               <div className="flex items-center gap-2.5 px-2 py-2">
-                <Avatar name={currentUser.name} size={34} />
+                <Avatar name={displayName} size={34} />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{currentUser.name}</p>
-                  <p className="truncate text-xs text-muted">@{currentUser.handle}</p>
+                  <p className="truncate text-sm font-semibold">{displayName}</p>
+                  <p className="truncate text-xs text-muted">{handle}</p>
                 </div>
               </div>
               <div className="my-1 h-px bg-separator" />
@@ -164,7 +178,7 @@ export function MenuBar() {
                 <SettingsIcon className="h-4 w-4 text-muted" /> Settings
               </button>
               <div className="my-1 h-px bg-separator" />
-              <button type="button" onClick={() => { logout(); closeAll(); }} className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-danger transition-colors hover:bg-danger/10">
+              <button type="button" onClick={() => { signOut(); closeAll(); }} className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-danger transition-colors hover:bg-danger/10">
                 <LogOut className="h-4 w-4" /> Log Out
               </button>
             </div>

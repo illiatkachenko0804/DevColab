@@ -33,6 +33,8 @@ function Card({ children, onClick, className = "", delay = 0 }: { children: Reac
 export function DesktopWidgets() {
   const ws = useOS((s) => s.activeWorkspace);
   const openApp = useOS((s) => s.openApp);
+  const user = useOS((s) => s.user);
+  const firstName = (user?.displayName ?? currentUser.name).split(" ")[0];
   const board = wsBoard(ws);
   const online = wsMembers(ws).filter((u) => u.presence === "online");
   const activities = wsActivities(ws);
@@ -44,7 +46,7 @@ export function DesktopWidgets() {
   return (
     <div className="mx-auto max-w-5xl">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 text-white">
-        <h1 className="text-3xl font-semibold tracking-tight drop-shadow">{greeting()}, {currentUser.name.split(" ")[0]}.</h1>
+        <h1 className="text-3xl font-semibold tracking-tight drop-shadow">{greeting()}, {firstName}.</h1>
         <p className="mt-1 flex items-center gap-2 text-white/70">
           Press
           <kbd className="inline-flex items-center gap-0.5 rounded-md border border-white/25 bg-white/10 px-1.5 py-0.5 text-xs"><Command className="h-3 w-3" />K</kbd>

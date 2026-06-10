@@ -60,6 +60,9 @@ export function SettingsApp() {
   const { theme, setTheme } = useTheme();
   const accent = useOS((s) => s.accent);
   const setAccent = useOS((s) => s.setAccent);
+  const user = useOS((s) => s.user);
+  const name = user?.displayName ?? currentUser.name;
+  const email = user?.email ?? "illia@devcollab.app";
 
   const themeOptions = [
     { id: "light", label: "Light", icon: Sun },
@@ -95,15 +98,15 @@ export function SettingsApp() {
           {cat === "profile" && (
             <section>
               <div className="mb-6 flex items-center gap-4">
-                <Avatar name={currentUser.name} size={64} />
+                <Avatar name={name} size={64} />
                 <div>
-                  <p className="text-lg font-semibold">{currentUser.name}</p>
-                  <p className="text-sm text-muted">@{currentUser.handle} · {currentUser.role}</p>
+                  <p className="text-lg font-semibold">{name}</p>
+                  <p className="text-sm text-muted">{email}</p>
                 </div>
               </div>
-              <Row label="Display name"><input defaultValue={currentUser.name} className="w-56 rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent" /></Row>
+              <Row label="Display name"><input defaultValue={name} className="w-56 rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent" /></Row>
               <Row label="Title"><input defaultValue={currentUser.title} className="w-56 rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent" /></Row>
-              <Row label="Email" desc="Used for sign-in and notifications"><span className="text-sm text-muted">illia@devcollab.app</span></Row>
+              <Row label="Email" desc="Used for sign-in and notifications"><span className="text-sm text-muted">{email}</span></Row>
             </section>
           )}
 

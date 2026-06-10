@@ -2,10 +2,11 @@
 
 import { Bell, Monitor, Moon, Paintbrush, Sun, User, Users } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { currentUser } from "@/lib/mock";
 import { cn } from "@/lib/utils";
+import { useOS } from "@/stores/os";
 
 const CATEGORIES = [
   { id: "profile", label: "Profile", icon: User, color: "var(--app-chat)" },
@@ -57,11 +58,8 @@ function Row({ label, desc, children }: { label: string; desc?: string; children
 export function SettingsApp() {
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]["id"]>("appearance");
   const { theme, setTheme } = useTheme();
-  const [accent, setAccent] = useState("#007aff");
-
-  useEffect(() => {
-    document.documentElement.style.setProperty("--accent", accent);
-  }, [accent]);
+  const accent = useOS((s) => s.accent);
+  const setAccent = useOS((s) => s.setAccent);
 
   const themeOptions = [
     { id: "light", label: "Light", icon: Sun },

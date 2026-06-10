@@ -9,6 +9,7 @@ import { MembersApp } from "@/components/apps/members-app";
 import { SettingsApp } from "@/components/apps/settings-app";
 import { SnippetsApp } from "@/components/apps/snippets-app";
 import { appMeta, type AppId } from "@/lib/apps";
+import { cn } from "@/lib/utils";
 import { focusedApp, useOS } from "@/stores/os";
 import { CommandPalette } from "./command-palette";
 import { Dock } from "./dock";
@@ -53,12 +54,20 @@ export function Desktop() {
   const toggleMaximize = useOS((s) => s.toggleMaximize);
   const focusWindow = useOS((s) => s.focusWindow);
   const moveWindow = useOS((s) => s.moveWindow);
+  const resizeWindow = useOS((s) => s.resizeWindow);
   const toggleCommand = useOS((s) => s.toggleCommand);
   const setCommandOpen = useOS((s) => s.setCommandOpen);
   const setNotifOpen = useOS((s) => s.setNotifOpen);
+  const setAccent = useOS((s) => s.setAccent);
 
   const isMobile = useIsMobile();
   const constraintsRef = useRef<HTMLDivElement>(null);
+
+  // Restore the saved accent color.
+  useEffect(() => {
+    const saved = localStorage.getItem("devcollab.accent");
+    if (saved) setAccent(saved);
+  }, [setAccent]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -77,9 +86,8 @@ export function Desktop() {
 
   const top = focusedApp(windows);
   const visible = windows.filter((w) => !w.minimized);
-  const toRender = isMobile
-    ? visible.filter((w) => w.app === top)
-    : visible;
+  const toRender = isMobile ? visible.filter((w) => w.app === top) : visible;
+  const hasWindows = visible.length > 0;
 
   return (
     <div
@@ -94,15 +102,18 @@ export function Desktop() {
       <MenuBar />
 
       <main className="relative z-10 min-h-0 flex-1">
-        {/* Desktop widgets show when nothing is open */}
-        {visible.length === 0 && (
-          <div className="absolute inset-0 overflow-y-auto px-6 pb-24 pt-8 no-scrollbar">
-            <DesktopWidgets />
-          </div>
-        )}
+        {/* Desktop widgets stay behind open windows — dimmed + desaturated. */}
+        <div
+          className={cn(
+            "absolute inset-0 overflow-y-auto px-6 pb-24 pt-8 no-scrollbar transition-all duration-300",
+            hasWindows ? "pointer-events-none opacity-25 grayscale" : "opacity-100",
+          )}
+        >
+          <DesktopWidgets />
+        </div>
 
         {/* Windows layer (isolated stacking context so window z stays below dock) */}
-        <div ref={constraintsRef} className="absolute inset-0 isolate">
+        <div ref={constraintsRef} className="pointer-events-none absolute inset-0 isolate">
           <AnimatePresence>
             {toRender.map((w) => {
               const meta = appMeta(w.app);
@@ -113,12 +124,12 @@ export function Desktop() {
                   isMobile={isMobile}
                   constraintsRef={constraintsRef}
                   title={meta.label}
-                  accent={meta.accent}
                   onFocus={() => focusWindow(w.app)}
                   onClose={() => closeApp(w.app)}
                   onMinimize={() => minimizeApp(w.app)}
                   onToggleMaximize={() => toggleMaximize(w.app)}
                   onMove={(x, y) => moveWindow(w.app, x, y)}
+                  onResize={(width, height) => resizeWindow(w.app, width, height)}
                 >
                   {renderApp(w.app)}
                 </WindowFrame>

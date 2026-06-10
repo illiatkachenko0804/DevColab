@@ -21,6 +21,9 @@ const DEFAULT_SIZE: Record<AppId, { w: number; h: number }> = {
   settings: { w: 720, h: 520 },
 };
 
+export const MIN_W = 380;
+export const MIN_H = 320;
+
 interface OSState {
   loggedIn: boolean;
   activeWorkspace: string;
@@ -28,10 +31,12 @@ interface OSState {
   zTop: number;
   commandOpen: boolean;
   notifOpen: boolean;
+  accent: string;
 
   login: () => void;
   logout: () => void;
   setWorkspace: (id: string) => void;
+  setAccent: (c: string) => void;
 
   openApp: (id: AppId) => void;
   closeApp: (id: AppId) => void;
@@ -39,6 +44,7 @@ interface OSState {
   toggleMaximize: (id: AppId) => void;
   focusWindow: (id: AppId) => void;
   moveWindow: (id: AppId, x: number, y: number) => void;
+  resizeWindow: (id: AppId, w: number, h: number) => void;
 
   setCommandOpen: (open: boolean) => void;
   toggleCommand: () => void;
@@ -67,6 +73,7 @@ export const useOS = create<OSState>((set) => ({
   zTop: 1,
   commandOpen: false,
   notifOpen: false,
+  accent: "#007aff",
 
   login: () =>
     set({ loggedIn: true, windows: [spawn("chat", 0, 2)], zTop: 2 }),
@@ -80,6 +87,14 @@ export const useOS = create<OSState>((set) => ({
     }),
 
   setWorkspace: (id) => set({ activeWorkspace: id }),
+
+  setAccent: (c) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("devcollab.accent", c);
+      document.documentElement.style.setProperty("--accent", c);
+    }
+    set({ accent: c });
+  },
 
   openApp: (id) =>
     set((s) => {
@@ -134,6 +149,15 @@ export const useOS = create<OSState>((set) => ({
   moveWindow: (id, x, y) =>
     set((s) => ({
       windows: s.windows.map((w) => (w.app === id ? { ...w, x, y } : w)),
+    })),
+
+  resizeWindow: (id, w, h) =>
+    set((s) => ({
+      windows: s.windows.map((win) =>
+        win.app === id
+          ? { ...win, w: Math.max(MIN_W, w), h: Math.max(MIN_H, h) }
+          : win,
+      ),
     })),
 
   setCommandOpen: (open) => set({ commandOpen: open }),

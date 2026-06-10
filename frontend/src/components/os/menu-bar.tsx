@@ -37,6 +37,9 @@ export function MenuBar() {
   const appLabel = top ? appMeta(top).label : "Desktop";
   const onlineCount = wsMembers(activeWorkspace).filter((u) => u.presence === "online").length;
   const unread = wsNotifications(activeWorkspace).filter((n) => !n.read).length;
+  const otherUnread = workspaces
+    .filter((w) => w.id !== activeWorkspace)
+    .reduce((sum, w) => sum + wsNotifications(w.id).filter((n) => !n.read).length, 0);
 
   const closeAll = () => {
     setProjOpen(false);
@@ -61,23 +64,36 @@ export function MenuBar() {
         >
           <span className="h-3 w-3 rounded-[4px]" style={{ background: ws.accent }} />
           {ws.name}
+          {otherUnread > 0 && (
+            <span className="grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold tabular-nums text-white">
+              {otherUnread > 99 ? "99+" : otherUnread}
+            </span>
+          )}
           <ChevronDown className="h-3 w-3 opacity-60" />
         </button>
         {projOpen && (
           <div className="glass-strong absolute left-0 top-7 w-56 overflow-hidden rounded-xl border border-separator p-1 shadow-[var(--shadow-pop)]">
             <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Switch project</p>
-            {workspaces.map((w) => (
-              <button
-                key={w.id}
-                type="button"
-                onClick={() => { setWorkspace(w.id); closeAll(); }}
-                className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-hover"
-              >
-                <span className="grid h-7 w-7 place-items-center rounded-md text-xs font-semibold text-white" style={{ background: w.accent }}>{w.initial}</span>
-                <span className="flex-1 text-sm font-medium">{w.name}</span>
-                {w.id === activeWorkspace && <Check className="h-4 w-4 text-accent" />}
-              </button>
-            ))}
+            {workspaces.map((w) => {
+              const count = wsNotifications(w.id).filter((n) => !n.read).length;
+              return (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => { setWorkspace(w.id); closeAll(); }}
+                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-md text-xs font-semibold text-white" style={{ background: w.accent }}>{w.initial}</span>
+                  <span className="flex-1 text-sm font-medium">{w.name}</span>
+                  {count > 0 && (
+                    <span className="grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-[11px] font-semibold tabular-nums text-white">
+                      {count > 99 ? "99+" : count}
+                    </span>
+                  )}
+                  {w.id === activeWorkspace && <Check className="h-4 w-4 text-accent" />}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

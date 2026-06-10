@@ -153,7 +153,7 @@ export function ChatApp() {
 
         {/* Composer */}
         <div className="shrink-0 border-t border-separator p-3">
-          <div className="flex items-end gap-2 rounded-xl border border-separator bg-surface px-3 py-2 focus-within:border-accent">
+          <div className="flex items-center gap-2 rounded-xl border border-separator bg-surface px-3 py-1.5 focus-within:border-accent">
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -166,7 +166,7 @@ export function ChatApp() {
               rows={1}
               placeholder={`Message #${channel.name}`}
               aria-label={`Message ${channel.name}`}
-              className="max-h-32 flex-1 resize-none bg-transparent text-[15px] outline-none placeholder:text-faint"
+              className="block max-h-32 flex-1 resize-none self-center bg-transparent py-1 text-[15px] leading-6 outline-none placeholder:text-faint"
             />
             <button
               type="button"

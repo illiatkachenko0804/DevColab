@@ -1,9 +1,9 @@
 "use client";
 
 import { motion, useDragControls, useMotionValue } from "framer-motion";
-import type { ReactNode, RefObject } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { cn } from "@/lib/utils";
-import type { WinState } from "@/stores/os";
+import { MIN_H, MIN_W, type WinState } from "@/stores/os";
 import { TrafficLights } from "./traffic-lights";
 
 interface Props {
@@ -11,12 +11,12 @@ interface Props {
   isMobile: boolean;
   constraintsRef: RefObject<HTMLDivElement | null>;
   title: string;
-  accent?: string;
   onFocus: () => void;
   onClose: () => void;
   onMinimize: () => void;
   onToggleMaximize: () => void;
   onMove: (x: number, y: number) => void;
+  onResize: (w: number, h: number) => void;
   children: ReactNode;
 }
 
@@ -25,12 +25,12 @@ export function WindowFrame({
   isMobile,
   constraintsRef,
   title,
-  accent,
   onFocus,
   onClose,
   onMinimize,
   onToggleMaximize,
   onMove,
+  onResize,
   children,
 }: Props) {
   const controls = useDragControls();
@@ -38,7 +38,26 @@ export function WindowFrame({
   const y = useMotionValue(win.y);
   const fixed = isMobile || win.maximized;
 
-  const accentStyle = accent ? ({ "--accent": accent } as React.CSSProperties) : undefined;
+  const startResize = (e: ReactPointerEvent, dir: "e" | "s" | "se") => {
+    e.preventDefault();
+    e.stopPropagation();
+    onFocus();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = win.w;
+    const startH = win.h;
+    const move = (ev: PointerEvent) => {
+      const w = dir.includes("e") ? startW + (ev.clientX - startX) : startW;
+      const h = dir.includes("s") ? startH + (ev.clientY - startY) : startH;
+      onResize(Math.max(MIN_W, w), Math.max(MIN_H, h));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
 
   const Header = (
     <header
@@ -51,6 +70,7 @@ export function WindowFrame({
       style={{ cursor: fixed ? "default" : "grab" }}
     >
       <TrafficLights
+        maximized={win.maximized}
         onClose={onClose}
         onMinimize={onMinimize}
         onToggleMaximize={onToggleMaximize}
@@ -69,12 +89,10 @@ export function WindowFrame({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         onPointerDown={onFocus}
-        style={{ zIndex: win.z, ...accentStyle }}
+        style={{ zIndex: win.z }}
         className={cn(
-          "absolute flex flex-col overflow-hidden border border-separator bg-surface shadow-[var(--shadow-window)]",
-          isMobile
-            ? "inset-0 rounded-none"
-            : "inset-x-2 top-2 bottom-20 rounded-[var(--radius-window)]",
+          "pointer-events-auto absolute flex flex-col overflow-hidden border border-separator bg-surface shadow-[var(--shadow-window)]",
+          isMobile ? "inset-0 rounded-none" : "inset-x-2 top-2 bottom-20 rounded-[var(--radius-window)]",
         )}
       >
         {Header}
@@ -94,11 +112,16 @@ export function WindowFrame({
       onDragEnd={() => onMove(x.get(), y.get())}
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      style={{ x, y, width: win.w, height: win.h, zIndex: win.z, ...accentStyle }}
-      className="absolute left-0 top-0 flex flex-col overflow-hidden rounded-[var(--radius-window)] border border-separator bg-surface shadow-[var(--shadow-window)]"
+      style={{ x, y, width: win.w, height: win.h, zIndex: win.z }}
+      className="pointer-events-auto absolute left-0 top-0 flex flex-col overflow-hidden rounded-[var(--radius-window)] border border-separator bg-surface shadow-[var(--shadow-window)]"
     >
       {Header}
       {Body}
+
+      {/* Resize handles */}
+      <div onPointerDown={(e) => startResize(e, "e")} className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-ew-resize" />
+      <div onPointerDown={(e) => startResize(e, "s")} className="absolute bottom-0 left-0 z-20 h-1.5 w-full cursor-ns-resize" />
+      <div onPointerDown={(e) => startResize(e, "se")} className="absolute bottom-0 right-0 z-20 h-3.5 w-3.5 cursor-nwse-resize" />
     </motion.div>
   );
 }

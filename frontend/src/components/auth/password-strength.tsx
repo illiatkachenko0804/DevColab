@@ -10,9 +10,13 @@ const META: Record<Strength, { label: string; color: string; bars: number }> = {
   strong: { label: "Strong", color: "var(--success)", bars: 3 },
 };
 
+// These rules still affect strength and validity, they're just not listed.
+const VISIBLE_CHECKS = new Set(["len", "lower", "upper", "digit", "symbol"]);
+
 export function PasswordStrength({ password }: { password: string }) {
   if (!password) return null;
   const { strength, checks } = evaluatePassword(password);
+  const visible = checks.filter((c) => VISIBLE_CHECKS.has(c.id));
   const m = META[strength];
 
   return (
@@ -32,7 +36,7 @@ export function PasswordStrength({ password }: { password: string }) {
         </span>
       </div>
       <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
-        {checks.map((c) => (
+        {visible.map((c) => (
           <li
             key={c.id}
             className={cn(

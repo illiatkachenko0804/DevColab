@@ -8,7 +8,6 @@ import { CodeBlock } from "@/components/ui/code-block";
 import { PresenceDot } from "@/components/ui/presence-dot";
 import {
   userById,
-  workspaceById,
   wsChannels,
   wsMembers,
   wsMessages,
@@ -19,11 +18,13 @@ import { useOS } from "@/stores/os";
 
 export function ChatApp() {
   const ws = useOS((s) => s.activeWorkspace);
+  const workspaces = useOS((s) => s.workspaces);
+  const wsName = workspaces.find((w) => w.id === ws)?.name ?? "Project";
   const channels = wsChannels(ws);
   const members = wsMembers(ws);
   const online = members.filter((u) => u.presence === "online");
 
-  const [activeChannel, setActiveChannel] = useState(channels[0].id);
+  const [activeChannel, setActiveChannel] = useState(channels[0]?.id ?? "");
   const [extra, setExtra] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
@@ -31,14 +32,14 @@ export function ChatApp() {
 
   // Reset selection + local messages when the project changes.
   useEffect(() => {
-    setActiveChannel(wsChannels(ws)[0].id);
+    setActiveChannel(wsChannels(ws)[0]?.id ?? "");
     setExtra([]);
   }, [ws]);
 
   const channel = channels.find((c) => c.id === activeChannel) ?? channels[0];
   const thread = useMemo(
-    () => [...wsMessages(ws, channel.id), ...extra.filter((m) => m.channelId === channel.id)],
-    [ws, channel.id, extra],
+    () => (channel ? [...wsMessages(ws, channel.id), ...extra.filter((m) => m.channelId === channel.id)] : []),
+    [ws, channel, extra],
   );
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export function ChatApp() {
 
   const send = () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || !channel) return;
     setExtra((p) => [...p, { id: `local-${Date.now()}`, channelId: channel.id, userId: "u1", body, at: new Date().toISOString() }]);
     setDraft("");
     if (online.length > 1) {
@@ -58,12 +59,27 @@ export function ChatApp() {
 
   const typer = online.find((u) => u.id !== "u1");
 
+  // Brand-new project: no channels yet.
+  if (channels.length === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        <Hash className="h-10 w-10 text-faint opacity-40" />
+        <div>
+          <p className="text-base font-semibold">No channels in {wsName} yet</p>
+          <p className="mt-1 max-w-xs text-sm text-muted">
+            Channels and real-time chat arrive in the next phase. Your project is ready to go.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-0 flex-1">
       {/* Channels sidebar */}
       <div className="hidden w-56 shrink-0 flex-col border-r border-separator bg-sidebar md:flex">
         <div className="border-b border-separator px-4 py-3">
-          <p className="text-sm font-semibold">{workspaceById(ws).name}</p>
+          <p className="text-sm font-semibold">{wsName}</p>
           <p className="text-xs text-muted">{members.length} members</p>
         </div>
         <nav className="flex-1 overflow-y-auto p-2 no-scrollbar">

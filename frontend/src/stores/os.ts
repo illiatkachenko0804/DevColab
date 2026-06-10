@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { AppId } from "@/lib/apps";
 import type { AuthUser } from "@/lib/auth";
+import type { Workspace } from "@/lib/workspaces";
 
 export interface WinState {
   app: AppId;
@@ -28,6 +29,8 @@ export const MIN_H = 320;
 interface OSState {
   loggedIn: boolean;
   user: AuthUser | null;
+  workspaces: Workspace[];
+  workspacesLoaded: boolean;
   activeWorkspace: string;
   windows: WinState[];
   zTop: number;
@@ -37,6 +40,8 @@ interface OSState {
 
   setSession: (user: AuthUser) => void;
   logout: () => void;
+  setWorkspaces: (workspaces: Workspace[]) => void;
+  addWorkspace: (workspace: Workspace) => void;
   setWorkspace: (id: string) => void;
   setAccent: (c: string) => void;
 
@@ -71,7 +76,9 @@ function spawn(app: AppId, index: number, z: number): WinState {
 export const useOS = create<OSState>((set) => ({
   loggedIn: false,
   user: null,
-  activeWorkspace: "w1",
+  workspaces: [],
+  workspacesLoaded: false,
+  activeWorkspace: "",
   windows: [],
   zTop: 1,
   commandOpen: false,
@@ -84,11 +91,30 @@ export const useOS = create<OSState>((set) => ({
     set({
       loggedIn: false,
       user: null,
+      workspaces: [],
+      workspacesLoaded: false,
+      activeWorkspace: "",
       windows: [],
       zTop: 1,
       commandOpen: false,
       notifOpen: false,
     }),
+
+  setWorkspaces: (workspaces) =>
+    set((s) => ({
+      workspaces,
+      workspacesLoaded: true,
+      activeWorkspace: workspaces.some((w) => w.id === s.activeWorkspace)
+        ? s.activeWorkspace
+        : (workspaces[0]?.id ?? ""),
+    })),
+
+  addWorkspace: (workspace) =>
+    set((s) => ({
+      workspaces: [...s.workspaces, workspace],
+      workspacesLoaded: true,
+      activeWorkspace: workspace.id,
+    })),
 
   setWorkspace: (id) => set({ activeWorkspace: id }),
 

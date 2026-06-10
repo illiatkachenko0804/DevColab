@@ -21,6 +21,12 @@ export function MembersApp() {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-5 no-scrollbar">
+        {members.length === 0 && (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted">
+            <UserPlus className="h-9 w-9 opacity-40" />
+            <p className="text-sm">You're the only one here. Invite teammates to collaborate.</p>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {members.map((u) => (
             <div key={u.id} className="flex items-center gap-3 rounded-[var(--radius-card)] border border-separator bg-surface p-4 shadow-[var(--shadow-card)]">

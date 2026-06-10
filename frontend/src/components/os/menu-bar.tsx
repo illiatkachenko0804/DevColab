@@ -6,7 +6,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { appMeta } from "@/lib/apps";
 import { logout as apiLogout } from "@/lib/auth";
-import { workspaceById, workspaces, wsMembers, wsNotifications } from "@/lib/mock";
+import { wsMembers, wsNotifications } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 import { focusedApp, useOS } from "@/stores/os";
 
@@ -22,6 +22,7 @@ function useClock() {
 
 export function MenuBar() {
   const windows = useOS((s) => s.windows);
+  const workspaces = useOS((s) => s.workspaces);
   const activeWorkspace = useOS((s) => s.activeWorkspace);
   const setWorkspace = useOS((s) => s.setWorkspace);
   const openApp = useOS((s) => s.openApp);
@@ -46,7 +47,7 @@ export function MenuBar() {
   const [projOpen, setProjOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
 
-  const ws = workspaceById(activeWorkspace);
+  const ws = workspaces.find((w) => w.id === activeWorkspace) ?? workspaces[0];
   const top = focusedApp(windows);
   const appLabel = top ? appMeta(top).label : "Desktop";
   const onlineCount = wsMembers(activeWorkspace).filter((u) => u.presence === "online").length;
@@ -76,8 +77,8 @@ export function MenuBar() {
           onClick={() => { setAcctOpen(false); setProjOpen((v) => !v); }}
           className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 font-semibold transition-colors hover:bg-hover"
         >
-          <span className="h-3 w-3 rounded-[4px]" style={{ background: ws.accent }} />
-          {ws.name}
+          <span className="h-3 w-3 rounded-[4px]" style={{ background: ws?.accent }} />
+          {ws?.name}
           {otherUnread > 0 && (
             <span className="grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold tabular-nums text-white">
               {otherUnread > 99 ? "99+" : otherUnread}

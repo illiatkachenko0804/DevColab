@@ -16,7 +16,10 @@ const VISIBLE_CHECKS = new Set(["len", "lower", "upper", "digit", "symbol"]);
 export function PasswordStrength({ password }: { password: string }) {
   if (!password) return null;
   const { strength, checks } = evaluatePassword(password);
-  const visible = checks.filter((c) => VISIBLE_CHECKS.has(c.id));
+  const visible = [
+    ...checks.filter((c) => VISIBLE_CHECKS.has(c.id)),
+    { id: "strong", label: "Must be strong", ok: strength === "strong" },
+  ];
   const m = META[strength];
 
   return (

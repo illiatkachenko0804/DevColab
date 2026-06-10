@@ -290,7 +290,28 @@ export const WORKSPACE_DATA: Record<string, WorkspaceData> = {
 };
 
 // --- Selectors --------------------------------------------------------------
-export const wsData = (ws: string) => WORKSPACE_DATA[ws];
+/** A brand-new (real) workspace has no demo content — return safe empties. */
+function emptyData(ws: string): WorkspaceData {
+  return {
+    memberIds: [],
+    channels: [],
+    messages: {},
+    board: {
+      name: "Board",
+      columns: [
+        { id: `${ws}-todo`, name: "Todo", taskIds: [] },
+        { id: `${ws}-doing`, name: "In Progress", taskIds: [] },
+        { id: `${ws}-done`, name: "Done", taskIds: [] },
+      ],
+      tasks: {},
+    },
+    snippets: [],
+    activities: [],
+    notifications: [],
+  };
+}
+
+export const wsData = (ws: string): WorkspaceData => WORKSPACE_DATA[ws] ?? emptyData(ws);
 export const wsMembers = (ws: string): User[] => wsData(ws).memberIds.map(userById);
 export const wsChannels = (ws: string): Channel[] => wsData(ws).channels;
 export const wsMessages = (ws: string, channelId: string): Message[] =>

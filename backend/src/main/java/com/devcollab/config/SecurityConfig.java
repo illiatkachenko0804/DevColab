@@ -2,22 +2,36 @@ package com.devcollab.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-/**
- * Phase 0 security baseline: stateless API, CSRF disabled, CORS enabled.
- *
- * <p>Endpoints are currently open so the scaffold is runnable. Phase 1 replaces
- * this with a JWT authentication filter and locks {@code /api/**} down to
- * authenticated users.
- */
+import com.devcollab.auth.JwtAuthFilter;
+import com.devcollab.auth.OAuth2SuccessHandler;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, OAuth2SuccessHandler oAuth2SuccessHandler) {
+        this.jwtAuthFilter = jwtAuthFilter;
+        this.oAuth2SuccessHandler = oAuth2SuccessHandler;
+    }
+
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -28,13 +42,22 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/actuator/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/api/ping")
+                                "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
+                                "/api/ping",
+                                "/api/auth/register",
+                                "/api/auth/verify-email",
+                                "/api/auth/resend-code",
+                                "/api/auth/login",
+                                "/api/auth/logout",
+                                "/oauth2/**", "/login/**")
                         .permitAll()
-                        // Phase 0: remaining requests are open and will be tightened in Phase 1.
-                        .anyRequest().permitAll());
+                        .anyRequest().authenticated())
+                .oauth2Login(oauth -> oauth.successHandler(oAuth2SuccessHandler))
+                // Return 401 (not a login redirect) for unauthenticated API calls.
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(
+                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 }

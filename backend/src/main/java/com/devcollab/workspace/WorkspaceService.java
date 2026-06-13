@@ -6,6 +6,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.devcollab.chat.Channel;
+import com.devcollab.chat.ChannelRepository;
 import com.devcollab.common.error.ApiException;
 import com.devcollab.workspace.dto.CreateWorkspaceRequest;
 import com.devcollab.workspace.dto.WorkspaceResponse;
@@ -15,10 +17,15 @@ public class WorkspaceService {
 
     private final WorkspaceRepository workspaces;
     private final MembershipRepository memberships;
+    private final ChannelRepository channels;
 
-    public WorkspaceService(WorkspaceRepository workspaces, MembershipRepository memberships) {
+    public WorkspaceService(
+            WorkspaceRepository workspaces,
+            MembershipRepository memberships,
+            ChannelRepository channels) {
         this.workspaces = workspaces;
         this.memberships = memberships;
+        this.channels = channels;
     }
 
     @Transactional
@@ -36,6 +43,13 @@ public class WorkspaceService {
         m.setUserId(ownerId);
         m.setRole("ADMIN");
         memberships.save(m);
+
+        // Seed a default #general channel so the project isn't empty.
+        Channel general = new Channel();
+        general.setWorkspaceId(w.getId());
+        general.setName("general");
+        general.setType("TEXT");
+        channels.save(general);
 
         return WorkspaceResponse.from(w, "ADMIN");
     }

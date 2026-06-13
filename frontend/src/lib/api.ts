@@ -20,6 +20,7 @@ export class ApiError extends Error {
 export async function api<T>(
   path: string,
   options: RequestInit = {},
+  retry = true,
 ): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
@@ -29,6 +30,15 @@ export async function api<T>(
       ...options.headers,
     },
   });
+
+  // Access token expired? Try a one-shot refresh, then replay the request.
+  if (res.status === 401 && retry && path !== "/api/auth/refresh") {
+    const refreshed = await fetch(`${BASE_URL}/api/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (refreshed.ok) return api<T>(path, options, false);
+  }
 
   if (!res.ok) {
     let detail: unknown;

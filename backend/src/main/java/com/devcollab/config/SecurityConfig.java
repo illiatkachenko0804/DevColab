@@ -42,7 +42,8 @@ public class SecurityConfig {
                                 "/api/auth/resend-code",
                                 "/api/auth/login",
                                 "/api/auth/logout",
-                                "/oauth2/**", "/login/**")
+                                "/oauth2/**", "/login/**",
+                                "/ws/**")
                         .permitAll()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth -> oauth.successHandler(oAuth2SuccessHandler))

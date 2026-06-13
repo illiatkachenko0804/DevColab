@@ -3,6 +3,7 @@ package com.devcollab.chat;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,11 +18,17 @@ public class MessageService {
     private final MessageRepository messages;
     private final ChannelService channels;
     private final UserRepository users;
+    private final SimpMessagingTemplate broker;
 
-    public MessageService(MessageRepository messages, ChannelService channels, UserRepository users) {
+    public MessageService(
+            MessageRepository messages,
+            ChannelService channels,
+            UserRepository users,
+            SimpMessagingTemplate broker) {
         this.messages = messages;
         this.channels = channels;
         this.users = users;
+        this.broker = broker;
     }
 
     @Transactional(readOnly = true)
@@ -44,6 +51,8 @@ public class MessageService {
         m.setContent(content.trim());
         messages.save(m);
         User author = users.findById(userId).orElseThrow(() -> ApiException.unauthorized("Not authenticated"));
-        return MessageResponse.of(m, author);
+        MessageResponse response = MessageResponse.of(m, author);
+        broker.convertAndSend("/topic/channel." + channelId, response);
+        return response;
     }
 }

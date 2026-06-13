@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.devcollab.chat.dto.ChannelMemberResponse;
 import com.devcollab.chat.dto.ChannelResponse;
 import com.devcollab.common.error.ApiException;
 import com.devcollab.user.User;
@@ -32,24 +34,27 @@ public class ChannelService {
         this.guard = guard;
     }
 
-    /** Text channels in the workspace + the caller's DMs. */
+    /** Channels (text + DMs) the caller is a participant of, in this workspace. */
     @Transactional(readOnly = true)
     public List<ChannelResponse> list(UUID workspaceId, UUID userId) {
         guard.requireMember(workspaceId, userId);
-        List<ChannelResponse> out = new ArrayList<>();
-
-        channels.findByWorkspaceIdAndTypeOrderByCreatedAtAsc(workspaceId, "TEXT")
-                .forEach(c -> out.add(ChannelResponse.text(c)));
-
+        List<ChannelResponse> texts = new ArrayList<>();
+        List<ChannelResponse> dms = new ArrayList<>();
         for (ChannelParticipant p : participants.findByUserId(userId)) {
             Channel c = channels.findById(p.getChannelId()).orElse(null);
-            if (c == null || !"DM".equals(c.getType()) || !c.getWorkspaceId().equals(workspaceId)) continue;
-            User peer = otherParticipant(c.getId(), userId);
-            if (peer != null) out.add(ChannelResponse.dm(c, peer));
+            if (c == null || !c.getWorkspaceId().equals(workspaceId)) continue;
+            if ("DM".equals(c.getType())) {
+                User peer = otherParticipant(c.getId(), userId);
+                if (peer != null) dms.add(ChannelResponse.dm(c, peer));
+            } else {
+                texts.add(ChannelResponse.text(c));
+            }
         }
-        return out;
+        texts.addAll(dms);
+        return texts;
     }
 
+    /** New channel starts with just the creator; others are added later. */
     @Transactional
     public ChannelResponse createText(UUID workspaceId, UUID userId, String rawName) {
         guard.requireMember(workspaceId, userId);
@@ -63,6 +68,7 @@ public class ChannelService {
         c.setName(name);
         c.setType("TEXT");
         channels.save(c);
+        addParticipant(c.getId(), userId);
         return ChannelResponse.text(c);
     }
 
@@ -87,17 +93,35 @@ public class ChannelService {
         return ChannelResponse.dm(c, peer);
     }
 
-    /** Authorizes a user for a channel and returns the channel. */
+    /** Add an existing project member to a text channel. */
+    @Transactional
+    public ChannelMemberResponse addMember(UUID channelId, UUID requesterId, UUID targetId) {
+        Channel c = requireAccess(channelId, requesterId);
+        if ("DM".equals(c.getType())) throw ApiException.badRequest("You can't add people to a direct message");
+        guard.requireMember(c.getWorkspaceId(), targetId);
+        if (!participants.existsByChannelIdAndUserId(channelId, targetId)) {
+            addParticipant(channelId, targetId);
+        }
+        User u = users.findById(targetId).orElseThrow(() -> ApiException.badRequest("User not found"));
+        return ChannelMemberResponse.of(u);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChannelMemberResponse> listMembers(UUID channelId, UUID requesterId) {
+        requireAccess(channelId, requesterId);
+        return participants.findByChannelId(channelId).stream()
+                .map(p -> users.findById(p.getUserId()).map(ChannelMemberResponse::of).orElse(null))
+                .filter(r -> r != null)
+                .toList();
+    }
+
+    /** Authorizes a user for a channel (must be a participant) and returns it. */
     @Transactional(readOnly = true)
     public Channel requireAccess(UUID channelId, UUID userId) {
         Channel c = channels.findById(channelId)
                 .orElseThrow(() -> ApiException.badRequest("Channel not found"));
-        if ("DM".equals(c.getType())) {
-            if (!participants.existsByChannelIdAndUserId(channelId, userId)) {
-                throw new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "No access to this conversation");
-            }
-        } else {
-            guard.requireMember(c.getWorkspaceId(), userId);
+        if (!participants.existsByChannelIdAndUserId(channelId, userId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "No access to this channel");
         }
         return c;
     }

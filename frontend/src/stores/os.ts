@@ -37,7 +37,9 @@ interface OSState {
   commandOpen: boolean;
   notifOpen: boolean;
   accent: string;
+  online: string[];
 
+  setOnline: (ids: string[]) => void;
   setSession: (user: AuthUser) => void;
   logout: () => void;
   setWorkspaces: (workspaces: Workspace[]) => void;
@@ -84,6 +86,9 @@ export const useOS = create<OSState>((set) => ({
   commandOpen: false,
   notifOpen: false,
   accent: "#007aff",
+  online: [],
+
+  setOnline: (ids) => set({ online: ids }),
 
   // Land on the desktop (no windows) — the user picks an app from the dock.
   setSession: (user) => set({ loggedIn: true, user, windows: [], zTop: 1 }),

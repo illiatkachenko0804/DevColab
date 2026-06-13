@@ -9,7 +9,9 @@ import { MembersApp } from "@/components/apps/members-app";
 import { SettingsApp } from "@/components/apps/settings-app";
 import { SnippetsApp } from "@/components/apps/snippets-app";
 import { appMeta, type AppId } from "@/lib/apps";
+import { fetchPresence } from "@/lib/chat";
 import { cn } from "@/lib/utils";
+import { addConnectListener, subscribe, wsConnect, wsDisconnect } from "@/lib/ws";
 import { focusedApp, useOS } from "@/stores/os";
 import { CommandPalette } from "./command-palette";
 import { Dock } from "./dock";
@@ -60,8 +62,25 @@ export function Desktop() {
   const setNotifOpen = useOS((s) => s.setNotifOpen);
   const setAccent = useOS((s) => s.setAccent);
 
+  const setOnline = useOS((s) => s.setOnline);
   const isMobile = useIsMobile();
   const constraintsRef = useRef<HTMLDivElement>(null);
+
+  // Realtime connection + live presence for the whole session.
+  useEffect(() => {
+    wsConnect();
+    const unsub = subscribe("/topic/presence", (ids) => setOnline(ids as string[]));
+    // Refresh the presence snapshot on every (re)connect — by then we're online too.
+    const unsubConnect = addConnectListener(() => {
+      fetchPresence().then(setOnline).catch(() => {});
+    });
+    fetchPresence().then(setOnline).catch(() => {});
+    return () => {
+      unsub();
+      unsubConnect();
+      wsDisconnect();
+    };
+  }, [setOnline]);
 
   // Restore the saved accent color.
   useEffect(() => {

@@ -49,3 +49,31 @@ export function sendMessage(channelId: string, content: string): Promise<ChatMes
     body: JSON.stringify({ content }),
   });
 }
+
+export interface ChannelMember {
+  id: string;
+  displayName: string;
+  devTag: string;
+  avatarUrl: string | null;
+}
+
+export function listChannelMembers(channelId: string): Promise<ChannelMember[]> {
+  return api(`/api/channels/${channelId}/members`);
+}
+
+export function addChannelMember(channelId: string, userId: string): Promise<ChannelMember> {
+  return api(`/api/channels/${channelId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export interface TypingEvent {
+  userId: string;
+  displayName: string;
+  typing: boolean;
+}
+
+export function fetchPresence(): Promise<string[]> {
+  return api("/api/presence");
+}

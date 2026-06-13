@@ -1,10 +1,12 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Command } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { PresenceDot } from "@/components/ui/presence-dot";
-import { currentUser, userById, wsActivities, wsBoard, wsMembers } from "@/lib/mock";
+import { listMembers } from "@/lib/members";
+import { currentUser, userById, wsActivities, wsBoard } from "@/lib/mock";
 import { relativeTime } from "@/lib/utils";
 import { useOS } from "@/stores/os";
 
@@ -34,9 +36,11 @@ export function DesktopWidgets() {
   const ws = useOS((s) => s.activeWorkspace);
   const openApp = useOS((s) => s.openApp);
   const user = useOS((s) => s.user);
+  const onlineIds = useOS((s) => s.online);
   const firstName = (user?.displayName ?? currentUser.name).split(" ")[0];
   const board = wsBoard(ws);
-  const online = wsMembers(ws).filter((u) => u.presence === "online");
+  const membersQuery = useQuery({ queryKey: ["members", ws], queryFn: () => listMembers(ws), enabled: !!ws });
+  const online = (membersQuery.data ?? []).filter((m) => onlineIds.includes(m.id));
   const activities = wsActivities(ws);
 
   // First few tasks from the "In Progress" / first columns.
@@ -77,10 +81,10 @@ export function DesktopWidgets() {
             {online.map((u) => (
               <div key={u.id} className="flex items-center gap-2.5">
                 <span className="relative">
-                  <Avatar name={u.name} size={26} />
-                  <PresenceDot state={u.presence} size={8} className="absolute -bottom-0.5 -right-0.5" />
+                  <Avatar name={u.displayName} size={26} />
+                  <PresenceDot state="online" size={8} className="absolute -bottom-0.5 -right-0.5" />
                 </span>
-                <span className="text-sm">{u.name}</span>
+                <span className="text-sm">{u.displayName}</span>
               </div>
             ))}
             {online.length === 0 && <span className="text-sm text-muted">No one online.</span>}

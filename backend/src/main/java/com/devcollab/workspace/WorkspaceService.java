@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.devcollab.board.BoardService;
 import com.devcollab.chat.Channel;
 import com.devcollab.chat.ChannelRepository;
 import com.devcollab.common.error.ApiException;
@@ -18,14 +19,17 @@ public class WorkspaceService {
     private final WorkspaceRepository workspaces;
     private final MembershipRepository memberships;
     private final ChannelRepository channels;
+    private final BoardService boards;
 
     public WorkspaceService(
             WorkspaceRepository workspaces,
             MembershipRepository memberships,
-            ChannelRepository channels) {
+            ChannelRepository channels,
+            BoardService boards) {
         this.workspaces = workspaces;
         this.memberships = memberships;
         this.channels = channels;
+        this.boards = boards;
     }
 
     @Transactional
@@ -50,6 +54,9 @@ public class WorkspaceService {
         general.setName("general");
         general.setType("TEXT");
         channels.save(general);
+
+        // Seed a default Kanban board (Todo / In Progress / Done).
+        boards.createDefaultBoard(w.getId());
 
         return WorkspaceResponse.from(w, "ADMIN");
     }

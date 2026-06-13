@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,6 +60,16 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<UserResponse> login(@Valid @RequestBody LoginRequest req) {
         return session(authService.login(req));
+    }
+
+    /** Issues a fresh access token (and rotates the refresh) from the refresh cookie. */
+    @PostMapping("/refresh")
+    public ResponseEntity<UserResponse> refresh(
+            @CookieValue(name = CookieService.REFRESH, required = false) String refreshToken) {
+        if (refreshToken == null) throw ApiException.unauthorized("No session");
+        UUID userId = jwt.parseRefresh(refreshToken);
+        if (userId == null) throw ApiException.unauthorized("Session expired");
+        return session(authService.requireById(userId));
     }
 
     @PostMapping("/logout")

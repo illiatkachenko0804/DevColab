@@ -5,6 +5,7 @@ import { AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { ActivityApp } from "@/components/apps/activity-app";
 import { ChatApp } from "@/components/apps/chat-app";
+import { FilesApp } from "@/components/apps/files-app";
 import { KanbanApp } from "@/components/apps/kanban-app";
 import { MembersApp } from "@/components/apps/members-app";
 import { SettingsApp } from "@/components/apps/settings-app";
@@ -33,6 +34,8 @@ function renderApp(id: AppId) {
       return <ActivityApp />;
     case "members":
       return <MembersApp />;
+    case "files":
+      return <FilesApp />;
     case "settings":
       return <SettingsApp />;
   }

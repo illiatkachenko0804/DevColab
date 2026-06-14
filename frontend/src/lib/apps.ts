@@ -1,6 +1,7 @@
 import {
   Activity,
   Code2,
+  Folder,
   LayoutGrid,
   MessageSquare,
   Settings,
@@ -14,6 +15,7 @@ export type AppId =
   | "snippets"
   | "activity"
   | "members"
+  | "files"
   | "settings";
 
 export interface AppMeta {
@@ -29,6 +31,7 @@ export const APPS: AppMeta[] = [
   { id: "snippets", label: "Snippets", icon: Code2, accent: "var(--app-snippets)" },
   { id: "activity", label: "Activity", icon: Activity, accent: "var(--app-activity)" },
   { id: "members", label: "Members", icon: Users, accent: "var(--app-members)" },
+  { id: "files", label: "Files", icon: Folder, accent: "var(--app-files)" },
   { id: "settings", label: "Settings", icon: Settings, accent: "var(--app-settings)" },
 ];
 

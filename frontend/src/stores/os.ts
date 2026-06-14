@@ -20,6 +20,7 @@ const DEFAULT_SIZE: Record<AppId, { w: number; h: number }> = {
   snippets: { w: 840, h: 560 },
   activity: { w: 700, h: 560 },
   members: { w: 760, h: 540 },
+  files: { w: 820, h: 600 },
   settings: { w: 720, h: 520 },
 };
 

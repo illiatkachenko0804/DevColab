@@ -1,12 +1,14 @@
 package com.devcollab.workspace;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.devcollab.common.error.ApiException;
+import com.devcollab.notification.NotificationService;
 import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.dto.MemberResponse;
@@ -16,12 +18,18 @@ public class MemberService {
 
     private final MembershipRepository memberships;
     private final UserRepository users;
+    private final WorkspaceRepository workspaces;
     private final WorkspaceGuard guard;
+    private final NotificationService notifications;
 
-    public MemberService(MembershipRepository memberships, UserRepository users, WorkspaceGuard guard) {
+    public MemberService(
+            MembershipRepository memberships, UserRepository users, WorkspaceRepository workspaces,
+            WorkspaceGuard guard, NotificationService notifications) {
         this.memberships = memberships;
         this.users = users;
+        this.workspaces = workspaces;
         this.guard = guard;
+        this.notifications = notifications;
     }
 
     @Transactional(readOnly = true)
@@ -66,6 +74,11 @@ public class MemberService {
         m.setUserId(user.getId());
         m.setRole("MEMBER");
         memberships.save(m);
+
+        String wsName = workspaces.findById(workspaceId).map(Workspace::getName).orElse("a project");
+        notifications.create(user.getId(), workspaceId, "members", "project_invite",
+                Map.of("title", "You were added to " + wsName));
+
         return MemberResponse.of(user, "MEMBER");
     }
 

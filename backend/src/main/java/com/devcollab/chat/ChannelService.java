@@ -1,7 +1,9 @@
 package com.devcollab.chat;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -11,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.devcollab.chat.dto.ChannelMemberResponse;
 import com.devcollab.chat.dto.ChannelResponse;
 import com.devcollab.common.error.ApiException;
+import com.devcollab.notification.NotificationService;
 import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.WorkspaceGuard;
@@ -20,21 +23,29 @@ public class ChannelService {
 
     private final ChannelRepository channels;
     private final ChannelParticipantRepository participants;
+    private final ChannelReadRepository reads;
+    private final MessageRepository messages;
     private final UserRepository users;
     private final WorkspaceGuard guard;
+    private final NotificationService notifications;
 
     public ChannelService(
             ChannelRepository channels,
             ChannelParticipantRepository participants,
+            ChannelReadRepository reads,
+            MessageRepository messages,
             UserRepository users,
-            WorkspaceGuard guard) {
+            WorkspaceGuard guard,
+            NotificationService notifications) {
         this.channels = channels;
         this.participants = participants;
+        this.reads = reads;
+        this.messages = messages;
         this.users = users;
         this.guard = guard;
+        this.notifications = notifications;
     }
 
-    /** Channels (text + DMs) the caller is a participant of, in this workspace. */
     @Transactional(readOnly = true)
     public List<ChannelResponse> list(UUID workspaceId, UUID userId) {
         guard.requireMember(workspaceId, userId);
@@ -43,18 +54,18 @@ public class ChannelService {
         for (ChannelParticipant p : participants.findByUserId(userId)) {
             Channel c = channels.findById(p.getChannelId()).orElse(null);
             if (c == null || !c.getWorkspaceId().equals(workspaceId)) continue;
+            long unread = unread(c.getId(), userId);
             if ("DM".equals(c.getType())) {
                 User peer = otherParticipant(c.getId(), userId);
-                if (peer != null) dms.add(ChannelResponse.dm(c, peer));
+                if (peer != null) dms.add(ChannelResponse.dm(c, peer, unread));
             } else {
-                texts.add(ChannelResponse.text(c));
+                texts.add(ChannelResponse.text(c, unread));
             }
         }
         texts.addAll(dms);
         return texts;
     }
 
-    /** New channel starts with just the creator; others are added later. */
     @Transactional
     public ChannelResponse createText(UUID workspaceId, UUID userId, String rawName) {
         guard.requireMember(workspaceId, userId);
@@ -69,7 +80,7 @@ public class ChannelService {
         c.setType("TEXT");
         channels.save(c);
         addParticipant(c.getId(), userId);
-        return ChannelResponse.text(c);
+        return ChannelResponse.text(c, 0);
     }
 
     @Transactional
@@ -90,10 +101,9 @@ public class ChannelService {
             addParticipant(c.getId(), targetId);
         }
         User peer = users.findById(targetId).orElseThrow(() -> ApiException.badRequest("User not found"));
-        return ChannelResponse.dm(c, peer);
+        return ChannelResponse.dm(c, peer, unread(c.getId(), userId));
     }
 
-    /** Add an existing project member to a text channel. */
     @Transactional
     public ChannelMemberResponse addMember(UUID channelId, UUID requesterId, UUID targetId) {
         Channel c = requireAccess(channelId, requesterId);
@@ -101,6 +111,8 @@ public class ChannelService {
         guard.requireMember(c.getWorkspaceId(), targetId);
         if (!participants.existsByChannelIdAndUserId(channelId, targetId)) {
             addParticipant(channelId, targetId);
+            notifications.create(targetId, c.getWorkspaceId(), "chat", "channel_added",
+                    Map.of("title", "You were added to #" + c.getName(), "channelId", channelId.toString()));
         }
         User u = users.findById(targetId).orElseThrow(() -> ApiException.badRequest("User not found"));
         return ChannelMemberResponse.of(u);
@@ -115,7 +127,19 @@ public class ChannelService {
                 .toList();
     }
 
-    /** Authorizes a user for a channel (must be a participant) and returns it. */
+    @Transactional
+    public void markRead(UUID channelId, UUID userId) {
+        requireAccess(channelId, userId);
+        ChannelRead r = reads.findByChannelIdAndUserId(channelId, userId).orElseGet(() -> {
+            ChannelRead nr = new ChannelRead();
+            nr.setChannelId(channelId);
+            nr.setUserId(userId);
+            return nr;
+        });
+        r.setLastReadAt(Instant.now());
+        reads.save(r);
+    }
+
     @Transactional(readOnly = true)
     public Channel requireAccess(UUID channelId, UUID userId) {
         Channel c = channels.findById(channelId)
@@ -124,6 +148,26 @@ public class ChannelService {
             throw new ApiException(HttpStatus.FORBIDDEN, "No access to this channel");
         }
         return c;
+    }
+
+    /** Participants of a channel other than the given user (for notifications). */
+    @Transactional(readOnly = true)
+    public List<UUID> otherParticipants(UUID channelId, UUID exceptUserId) {
+        return participants.findByChannelId(channelId).stream()
+                .map(ChannelParticipant::getUserId)
+                .filter(id -> !id.equals(exceptUserId))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isParticipant(UUID channelId, UUID userId) {
+        return participants.existsByChannelIdAndUserId(channelId, userId);
+    }
+
+    private long unread(UUID channelId, UUID userId) {
+        Instant after = reads.findByChannelIdAndUserId(channelId, userId)
+                .map(ChannelRead::getLastReadAt).orElse(Instant.EPOCH);
+        return messages.countByChannelIdAndCreatedAtAfterAndUserIdNot(channelId, after, userId);
     }
 
     private User otherParticipant(UUID channelId, UUID userId) {

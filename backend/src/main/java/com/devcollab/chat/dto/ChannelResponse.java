@@ -8,15 +8,16 @@ public record ChannelResponse(
         String name,
         String type,
         String peerId,
-        String peerDevTag) {
+        String peerDevTag,
+        long unread) {
 
-    public static ChannelResponse text(Channel c) {
-        return new ChannelResponse(c.getId().toString(), c.getName(), "TEXT", null, null);
+    public static ChannelResponse text(Channel c, long unread) {
+        return new ChannelResponse(c.getId().toString(), c.getName(), "TEXT", null, null, unread);
     }
 
-    public static ChannelResponse dm(Channel c, User peer) {
+    public static ChannelResponse dm(Channel c, User peer, long unread) {
         return new ChannelResponse(
                 c.getId().toString(), peer.getDisplayName(), "DM",
-                peer.getId().toString(), peer.getDevTag());
+                peer.getId().toString(), peer.getDevTag(), unread);
     }
 }

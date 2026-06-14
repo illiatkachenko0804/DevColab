@@ -65,7 +65,9 @@ app:
     secure: ${COOKIE_SECURE:false}            # true in production (HTTPS)
     same-site: ${COOKIE_SAME_SITE:Lax}        # None for cross-site prod
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    # Patterns (port wildcards allowed). Covers localhost + this host's LAN IP so
+    # other devices on the network can reach the API. Override via CORS_ALLOWED_ORIGINS.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:*,http://192.168.1.97:*}
   storage:
     # Where uploaded files are stored. Swap for Supabase Storage (S3) later.
     dir: ${STORAGE_DIR:uploads}

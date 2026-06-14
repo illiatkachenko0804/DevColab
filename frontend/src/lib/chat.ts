@@ -6,6 +6,11 @@ export interface Channel {
   type: "TEXT" | "DM";
   peerId: string | null;
   peerDevTag: string | null;
+  unread: number;
+}
+
+export function markChannelRead(channelId: string): Promise<void> {
+  return api(`/api/channels/${channelId}/read`, { method: "POST" });
 }
 
 export interface ChatMessage {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { ActivityApp } from "@/components/apps/activity-app";
@@ -65,22 +66,28 @@ export function Desktop() {
   const setOnline = useOS((s) => s.setOnline);
   const isMobile = useIsMobile();
   const constraintsRef = useRef<HTMLDivElement>(null);
+  const qc = useQueryClient();
 
-  // Realtime connection + live presence for the whole session.
+  // Realtime connection + live presence + notifications for the whole session.
   useEffect(() => {
     wsConnect();
-    const unsub = subscribe("/topic/presence", (ids) => setOnline(ids as string[]));
+    const unsubPresence = subscribe("/topic/presence", (ids) => setOnline(ids as string[]));
+    const unsubNotif = subscribe("/user/queue/notifications", () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["channels"] });
+    });
     // Refresh the presence snapshot on every (re)connect — by then we're online too.
     const unsubConnect = addConnectListener(() => {
       fetchPresence().then(setOnline).catch(() => {});
     });
     fetchPresence().then(setOnline).catch(() => {});
     return () => {
-      unsub();
+      unsubPresence();
+      unsubNotif();
       unsubConnect();
       wsDisconnect();
     };
-  }, [setOnline]);
+  }, [setOnline, qc]);
 
   // Restore the saved accent color.
   useEffect(() => {

@@ -11,6 +11,7 @@ import {
   listChannelMembers,
   listChannels,
   listMessages,
+  markChannelRead,
   sendMessage,
   type Channel,
   type ChatMessage,
@@ -62,6 +63,21 @@ export function ChatApp() {
   });
   const messages = messagesQuery.data ?? [];
 
+  // Mark the open channel as read (clears its unread badge).
+  const markRead = (id: string) => {
+    markChannelRead(id)
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ["channels", ws] });
+        qc.invalidateQueries({ queryKey: ["notifications", ws] });
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    if (selectedId) markRead(selectedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
   // Live messages over WebSocket.
   useEffect(() => {
     if (!selectedId) return;
@@ -71,8 +87,10 @@ export function ChatApp() {
         const list = old ?? [];
         return list.some((m) => m.id === msg.id) ? list : [...list, msg];
       });
+      markRead(selectedId);
     });
     return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, qc]);
 
   // Live typing indicator.
@@ -278,7 +296,12 @@ function ChannelRow({ channel, active, onClick }: { channel: Channel; active: bo
   return (
     <button type="button" onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", active ? "bg-accent text-accent-foreground" : "text-foreground/80 hover:bg-hover")}>
       {channel.type === "DM" ? <Avatar name={channel.name} size={18} /> : <Hash className="h-4 w-4 opacity-70" />}
-      <span className="flex-1 truncate text-left">{channel.name}</span>
+      <span className={cn("flex-1 truncate text-left", channel.unread > 0 && !active && "font-semibold")}>{channel.name}</span>
+      {channel.unread > 0 && !active && (
+        <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold tabular-nums text-white">
+          {channel.unread > 99 ? "99+" : channel.unread}
+        </span>
+      )}
     </button>
   );
 }

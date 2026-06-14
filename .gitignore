@@ -16,3 +16,7 @@ node_modules/
 backend/.gradle/
 backend/build/
 .DS_Store
+
+# Uploaded files (local storage)
+backend/uploads/
+uploads/

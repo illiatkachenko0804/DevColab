@@ -25,6 +25,11 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+
   # Real email is sent through any SMTP relay (Resend / Brevo / SendGrid /
   # Mailgun / SES / Outlook …). Enable by setting SPRING_MAIL_* env vars:
   #   SPRING_MAIL_HOST, SPRING_MAIL_PORT, SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD
@@ -61,6 +66,9 @@ app:
     same-site: ${COOKIE_SAME_SITE:Lax}        # None for cross-site prod
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  storage:
+    # Where uploaded files are stored. Swap for Supabase Storage (S3) later.
+    dir: ${STORAGE_DIR:uploads}
 
 springdoc:
   swagger-ui:

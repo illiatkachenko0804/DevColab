@@ -165,26 +165,6 @@ export function ChatApp() {
     onSuccess: (ch) => { qc.invalidateQueries({ queryKey: ["channels", ws] }); setSelectedId(ch.id); setDmSearch(null); },
   });
 
-  const sendTyping = (typing: boolean) => {
-    if (selectedId) publish(`/app/channel.${selectedId}.typing`, { typing });
-  };
-
-  const onDraftChange = (val: string) => {
-    setDraft(val);
-    if (!typingSentRef.current) { sendTyping(true); typingSentRef.current = true; }
-    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-    typingTimerRef.current = setTimeout(() => { sendTyping(false); typingSentRef.current = false; }, 2500);
-  };
-
-  const onSend = () => {
-    const body = draft.trim();
-    if (!body || !selectedId) return;
-    setDraft("");
-    sendTyping(false);
-    typingSentRef.current = false;
-    send.mutate(body);
-  };
-
   const typingNames = Object.values(typingUsers);
 
   return (

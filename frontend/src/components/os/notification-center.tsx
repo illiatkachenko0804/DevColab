@@ -64,7 +64,7 @@ export function NotificationCenter() {
                     key={n.id}
                     type="button"
                     onClick={() => { if (n.app) openApp(n.app as AppId); setOpen(false); }}
-                    className="flex w-full cursor-pointer items-start gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-hover"
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-hover"
                   >
                     <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" style={{ background: meta?.accent ?? "var(--faint)" }}>
                       {meta ? <meta.icon className="h-4 w-4" /> : <Bell className="h-4 w-4" />}

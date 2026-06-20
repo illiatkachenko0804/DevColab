@@ -1,4 +1,4 @@
-package com.devcollab.file;
+package com.devcollab.board;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -15,11 +15,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "files")
+@Table(name = "labels")
 @Getter
 @Setter
 @NoArgsConstructor
-public class StoredFile {
+public class Label {
 
     @Id
     @UuidGenerator
@@ -28,26 +28,14 @@ public class StoredFile {
     @Column(name = "workspace_id", nullable = false)
     private UUID workspaceId;
 
-    @Column(name = "uploader_id")
-    private UUID uploaderId;
-
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "content_type")
-    private String contentType;
-
-    @Column(name = "size_bytes", nullable = false)
-    private long sizeBytes;
-
-    @Column(name = "storage_key", nullable = false)
-    private String storageKey;
+    @Column(nullable = false)
+    private String color = "#6e6e73";
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
-
-    @Column(nullable = false)
-    private boolean hidden = false;
 
     @PrePersist
     void onCreate() {

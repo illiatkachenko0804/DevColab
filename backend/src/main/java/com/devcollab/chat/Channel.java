@@ -35,6 +35,15 @@ public class Channel {
     @Column(nullable = false)
     private String type = "TEXT";
 
+    @Column(name = "description")
+    private String description;
+
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    @Column(name = "admin_id")
+    private UUID adminId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

@@ -1,4 +1,5 @@
 import { api } from "./api";
+import type { Label } from "./labels";
 
 export interface TaskAssignee {
   id: string;
@@ -10,11 +11,22 @@ export interface TaskAssignee {
 export interface BoardTask {
   id: string;
   columnId: string;
+  taskKey: string;
+  type: "TASK" | "BUG" | "STORY" | "EPIC";
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  storyPoints: number | null;
   title: string;
   description: string | null;
   due: string | null;
   position: number;
+  sprintId: string | null;
+  parentId: string | null;
   assignee: TaskAssignee | null;
+  reporter: TaskAssignee | null;
+  labels: Label[];
+  commentCount: number;
+  subtaskCount: number;
+  subtasksDone: number;
 }
 
 export interface BoardColumn {
@@ -36,14 +48,36 @@ export function getBoard(ws: string): Promise<Board> {
 
 export function createTask(
   columnId: string,
-  body: { title: string; description?: string; assigneeId?: string; due?: string },
+  body: {
+    title: string;
+    description?: string;
+    type?: string;
+    priority?: string;
+    storyPoints?: number;
+    sprintId?: string;
+    parentId?: string;
+    assigneeId?: string;
+    due?: string;
+    labelIds?: string[];
+  },
 ): Promise<BoardTask> {
   return api(`/api/columns/${columnId}/tasks`, { method: "POST", body: JSON.stringify(body) });
 }
 
 export function updateTask(
   taskId: string,
-  body: { title?: string; description?: string; assigneeId?: string; due?: string },
+  body: {
+    title?: string;
+    description?: string;
+    type?: string;
+    priority?: string;
+    storyPoints?: number;
+    sprintId?: string;
+    parentId?: string;
+    assigneeId?: string;
+    due?: string;
+    labelIds?: string[];
+  },
 ): Promise<BoardTask> {
   return api(`/api/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(body) });
 }

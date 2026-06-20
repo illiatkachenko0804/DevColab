@@ -108,7 +108,7 @@ function ToastRenderer({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: str
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 80, scale: 0.95 }}
               transition={{ type: "spring", stiffness: 340, damping: 28 }}
-              className="glass-strong pointer-events-auto flex cursor-pointer items-start gap-3 rounded-2xl border border-separator p-3 shadow-[var(--shadow-pop)]"
+              className="glass-strong pointer-events-auto flex cursor-pointer items-center gap-3 rounded-2xl border border-separator p-3 shadow-[var(--shadow-pop)]"
               onClick={() => handleClick(t)}
               role="alert"
             >

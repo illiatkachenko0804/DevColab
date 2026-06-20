@@ -7,6 +7,9 @@ export interface Channel {
   peerId: string | null;
   peerDevTag: string | null;
   unread: number;
+  description: string | null;
+  imageUrl: string | null;
+  adminId: string | null;
 }
 
 export function markChannelRead(channelId: string): Promise<void> {
@@ -34,6 +37,19 @@ export function createChannel(ws: string, name: string): Promise<Channel> {
   return api(`/api/workspaces/${ws}/channels`, {
     method: "POST",
     body: JSON.stringify({ name }),
+  });
+}
+
+export interface UpdateChannelRequest {
+  name?: string;
+  description?: string;
+  imageUrl?: string;
+}
+
+export function updateChannel(ws: string, channelId: string, req: UpdateChannelRequest): Promise<Channel> {
+  return api(`/api/workspaces/${ws}/channels/${channelId}`, {
+    method: "PUT",
+    body: JSON.stringify(req),
   });
 }
 
@@ -70,6 +86,12 @@ export function addChannelMember(channelId: string, userId: string): Promise<Cha
   return api(`/api/channels/${channelId}/members`, {
     method: "POST",
     body: JSON.stringify({ userId }),
+  });
+}
+
+export function removeChannelMember(channelId: string, userId: string): Promise<void> {
+  return api(`/api/channels/${channelId}/members/${userId}`, {
+    method: "DELETE",
   });
 }
 

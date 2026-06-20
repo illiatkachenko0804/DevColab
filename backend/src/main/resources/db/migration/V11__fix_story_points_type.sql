@@ -1,0 +1,1 @@
+ALTER TABLE tasks ALTER COLUMN story_points TYPE INTEGER;

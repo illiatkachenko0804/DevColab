@@ -80,9 +80,21 @@ public class MessageService {
             }
             return;
         }
+        if (content.contains("@everyone")) {
+            for (UUID other : channels.otherParticipants(channel.getId(), author.getId())) {
+                notifications.create(other, ws, "chat", "mention",
+                        Map.of("title", author.getDisplayName() + " mentioned everyone in #" + channel.getName(),
+                                "channelId", channel.getId().toString()));
+            }
+        }
+
         Set<String> tags = new HashSet<>();
         Matcher matcher = MENTION.matcher(content);
-        while (matcher.find()) tags.add(matcher.group(1).toLowerCase());
+        while (matcher.find()) {
+            if (!matcher.group(1).equalsIgnoreCase("everyone")) {
+                tags.add(matcher.group(1).toLowerCase());
+            }
+        }
         for (String tag : tags) {
             users.findByDevTag(tag).ifPresent(u -> {
                 if (!u.getId().equals(author.getId()) && channels.isParticipant(channel.getId(), u.getId())) {

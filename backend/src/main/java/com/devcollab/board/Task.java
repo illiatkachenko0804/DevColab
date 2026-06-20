@@ -2,6 +2,8 @@ package com.devcollab.board;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import org.hibernate.annotations.UuidGenerator;
@@ -9,6 +11,9 @@ import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -52,6 +57,35 @@ public class Task {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Column(name = "task_key")
+    private String taskKey;
+
+    @Column(nullable = false)
+    private String type = "TASK";
+
+    @Column(nullable = false)
+    private String priority = "MEDIUM";
+
+    @Column(name = "story_points")
+    private Integer storyPoints;
+
+    @Column(name = "sprint_id")
+    private UUID sprintId;
+
+    @Column(name = "parent_id")
+    private UUID parentId;
+
+    @Column(name = "reporter_id")
+    private UUID reporterId;
+
+    @ManyToMany
+    @JoinTable(
+        name = "task_labels",
+        joinColumns = @JoinColumn(name = "task_id"),
+        inverseJoinColumns = @JoinColumn(name = "label_id")
+    )
+    private Set<Label> labels = new HashSet<>();
 
     @PrePersist
     void onCreate() {

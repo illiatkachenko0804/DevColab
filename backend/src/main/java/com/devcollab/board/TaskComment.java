@@ -1,4 +1,4 @@
-package com.devcollab.file;
+package com.devcollab.board;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -15,39 +15,30 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "files")
+@Table(name = "task_comments")
 @Getter
 @Setter
 @NoArgsConstructor
-public class StoredFile {
+public class TaskComment {
 
     @Id
     @UuidGenerator
     private UUID id;
 
-    @Column(name = "workspace_id", nullable = false)
-    private UUID workspaceId;
+    @Column(name = "task_id", nullable = false)
+    private UUID taskId;
 
-    @Column(name = "uploader_id")
-    private UUID uploaderId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(nullable = false)
-    private String name;
-
-    @Column(name = "content_type")
-    private String contentType;
-
-    @Column(name = "size_bytes", nullable = false)
-    private long sizeBytes;
-
-    @Column(name = "storage_key", nullable = false)
-    private String storageKey;
+    private String content;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
-    private boolean hidden = false;
+    @Column(name = "edited_at")
+    private Instant editedAt;
 
     @PrePersist
     void onCreate() {

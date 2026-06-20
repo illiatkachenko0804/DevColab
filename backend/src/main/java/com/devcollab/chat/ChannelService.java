@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.context.annotation.Lazy;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,8 @@ public class ChannelService {
     private final UserRepository users;
     private final WorkspaceGuard guard;
     private final NotificationService notifications;
+    private final MessageService messageService;
+    private final SimpMessagingTemplate broker;
 
     public ChannelService(
             ChannelRepository channels,
@@ -36,7 +40,9 @@ public class ChannelService {
             MessageRepository messages,
             UserRepository users,
             WorkspaceGuard guard,
-            NotificationService notifications) {
+            NotificationService notifications,
+            @Lazy MessageService messageService,
+            SimpMessagingTemplate broker) {
         this.channels = channels;
         this.participants = participants;
         this.reads = reads;
@@ -44,6 +50,8 @@ public class ChannelService {
         this.users = users;
         this.guard = guard;
         this.notifications = notifications;
+        this.messageService = messageService;
+        this.broker = broker;
     }
 
     @Transactional(readOnly = true)
@@ -78,9 +86,50 @@ public class ChannelService {
         c.setWorkspaceId(workspaceId);
         c.setName(name);
         c.setType("TEXT");
+        c.setAdminId(userId);
         channels.save(c);
         addParticipant(c.getId(), userId);
         return ChannelResponse.text(c, 0);
+    }
+
+    @Transactional
+    public ChannelResponse updateChannel(UUID channelId, UUID userId, com.devcollab.chat.dto.UpdateChannelRequest req) {
+        Channel c = channels.findById(channelId).orElseThrow(() -> ApiException.badRequest("Channel not found"));
+        if (!userId.equals(c.getAdminId())) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN, "Only the channel admin can update these settings");
+        }
+        
+        boolean nameChanged = false;
+        boolean imgChanged = false;
+
+        if (req.getName() != null && !req.getName().trim().isEmpty()) {
+            String name = normalizeName(req.getName());
+            if (!name.equals(c.getName())) {
+                if (channels.existsByWorkspaceIdAndName(c.getWorkspaceId(), name)) {
+                    throw ApiException.conflict("A channel named #" + name + " already exists");
+                }
+                c.setName(name);
+                nameChanged = true;
+            }
+        }
+        if (req.getDescription() != null) c.setDescription(req.getDescription().trim());
+        if (req.getImageUrl() != null && !req.getImageUrl().trim().equals(c.getImageUrl())) {
+            c.setImageUrl(req.getImageUrl().trim());
+            imgChanged = true;
+        }
+        
+        channels.save(c);
+
+        if (nameChanged) {
+            messageService.post(channelId, userId, "[SYSTEM_EVENT] Group name had been changed to #" + c.getName());
+        }
+        if (imgChanged) {
+            messageService.post(channelId, userId, "[SYSTEM_EVENT] Group image had been changed");
+        }
+
+        ChannelResponse response = ChannelResponse.text(c, unread(c.getId(), userId));
+        broker.convertAndSend("/topic/workspace." + c.getWorkspaceId() + ".channels", response);
+        return response;
     }
 
     @Transactional
@@ -109,13 +158,49 @@ public class ChannelService {
         Channel c = requireAccess(channelId, requesterId);
         if ("DM".equals(c.getType())) throw ApiException.badRequest("You can't add people to a direct message");
         guard.requireMember(c.getWorkspaceId(), targetId);
+        User u = users.findById(targetId).orElseThrow(() -> ApiException.badRequest("User not found"));
         if (!participants.existsByChannelIdAndUserId(channelId, targetId)) {
             addParticipant(channelId, targetId);
             notifications.create(targetId, c.getWorkspaceId(), "chat", "channel_added",
                     Map.of("title", "You were added to #" + c.getName(), "channelId", channelId.toString()));
+            
+            com.devcollab.chat.dto.MessageResponse.Author sysAuthor = new com.devcollab.chat.dto.MessageResponse.Author("system", "System", "system", null);
+            com.devcollab.chat.dto.MessageResponse sysEvent = new com.devcollab.chat.dto.MessageResponse(
+                UUID.randomUUID().toString(),
+                channelId.toString(),
+                "[SYSTEM_EVENT] " + u.getDisplayName() + " was added to group",
+                Instant.now().toString(),
+                sysAuthor
+            );
+            broker.convertAndSend("/topic/channel." + channelId, sysEvent);
+        }
+        return ChannelMemberResponse.of(u);
+    }
+
+    @Transactional
+    public void removeMember(UUID channelId, UUID requesterId, UUID targetId) {
+        Channel c = channels.findById(channelId).orElseThrow(() -> ApiException.badRequest("Channel not found"));
+        if (!requesterId.equals(c.getAdminId())) {
+            throw ApiException.forbidden("Only the channel admin can remove members");
+        }
+        if (requesterId.equals(targetId)) {
+            throw ApiException.badRequest("You cannot remove yourself");
         }
         User u = users.findById(targetId).orElseThrow(() -> ApiException.badRequest("User not found"));
-        return ChannelMemberResponse.of(u);
+        participants.deleteByChannelIdAndUserId(channelId, targetId);
+
+        com.devcollab.chat.dto.MessageResponse.Author sysAuthor = new com.devcollab.chat.dto.MessageResponse.Author("system", "System", "system", null);
+        com.devcollab.chat.dto.MessageResponse sysEvent = new com.devcollab.chat.dto.MessageResponse(
+            UUID.randomUUID().toString(),
+            channelId.toString(),
+            "[SYSTEM_EVENT] " + u.getDisplayName() + " was removed from group",
+            Instant.now().toString(),
+            sysAuthor
+        );
+        broker.convertAndSend("/topic/channel." + channelId, sysEvent);
+
+        broker.convertAndSend("/topic/workspace." + c.getWorkspaceId() + ".channels", 
+            Map.of("type", "SYSTEM_KICK", "channelId", channelId.toString(), "userId", targetId.toString()));
     }
 
     @Transactional(readOnly = true)

@@ -3,6 +3,8 @@ package com.devcollab.board;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,10 +15,13 @@ import com.devcollab.board.dto.CreateTaskRequest;
 import com.devcollab.board.dto.MoveTaskRequest;
 import com.devcollab.board.dto.TaskResponse;
 import com.devcollab.board.dto.UpdateTaskRequest;
+import com.devcollab.board.dto.LabelResponse;
 import com.devcollab.common.error.ApiException;
 import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.WorkspaceGuard;
+import com.devcollab.workspace.Workspace;
+import com.devcollab.workspace.WorkspaceRepository;
 
 @Service
 public class BoardService {
@@ -26,18 +31,24 @@ public class BoardService {
     private final TaskRepository tasks;
     private final UserRepository users;
     private final WorkspaceGuard guard;
+    private final TaskCommentRepository comments;
+    private final LabelRepository labels;
+    private final WorkspaceRepository workspaces;
 
     public BoardService(
             BoardRepository boards, BoardColumnRepository columns, TaskRepository tasks,
-            UserRepository users, WorkspaceGuard guard) {
+            UserRepository users, WorkspaceGuard guard, TaskCommentRepository comments,
+            LabelRepository labels, WorkspaceRepository workspaces) {
         this.boards = boards;
         this.columns = columns;
         this.tasks = tasks;
         this.users = users;
         this.guard = guard;
+        this.comments = comments;
+        this.labels = labels;
+        this.workspaces = workspaces;
     }
 
-    /** Seeds a default board with Todo / In Progress / Done. Called on workspace creation. */
     @Transactional
     public void createDefaultBoard(UUID workspaceId) {
         Board b = new Board();
@@ -69,9 +80,14 @@ public class BoardService {
 
     @Transactional
     public TaskResponse createTask(UUID columnId, UUID userId, CreateTaskRequest req) {
-        requireColumnMember(columnId, userId);
+        BoardColumn col = columns.findById(columnId).orElseThrow();
+        Board board = boards.findById(col.getBoardId()).orElseThrow();
+        guard.requireMember(board.getWorkspaceId(), userId);
+        Workspace ws = workspaces.findById(board.getWorkspaceId()).orElseThrow();
+
         double max = tasks.findByColumnIdOrderByPositionAsc(columnId).stream()
                 .mapToDouble(Task::getPosition).max().orElse(0);
+
         Task t = new Task();
         t.setColumnId(columnId);
         t.setTitle(req.title().trim());
@@ -80,6 +96,23 @@ public class BoardService {
         t.setDueDate(parseDate(req.due()));
         t.setPosition(max + 1000);
         t.setCreatedBy(userId);
+
+        t.setTaskKey(ws.getSlug().toUpperCase() + "-" + tasks.getNextTaskKeySeq());
+        if (req.type() != null) t.setType(req.type());
+        if (req.priority() != null) t.setPriority(req.priority());
+        t.setStoryPoints(req.storyPoints());
+        t.setSprintId(parseUser(req.sprintId()));
+        t.setParentId(parseUser(req.parentId()));
+        t.setReporterId(userId);
+
+        if (req.labelIds() != null) {
+            Set<Label> taskLabels = new HashSet<>();
+            for (String lid : req.labelIds()) {
+                labels.findById(parseUser(lid)).ifPresent(taskLabels::add);
+            }
+            t.setLabels(taskLabels);
+        }
+
         tasks.save(t);
         return toResponse(t);
     }
@@ -91,6 +124,21 @@ public class BoardService {
         if (req.description() != null) t.setDescription(blankToNull(req.description()));
         if (req.assigneeId() != null) t.setAssigneeId(parseUser(req.assigneeId()));
         if (req.due() != null) t.setDueDate(parseDate(req.due()));
+
+        if (req.type() != null) t.setType(req.type());
+        if (req.priority() != null) t.setPriority(req.priority());
+        if (req.storyPoints() != null) t.setStoryPoints(req.storyPoints());
+        if (req.sprintId() != null) t.setSprintId(parseUser(req.sprintId()));
+        if (req.parentId() != null) t.setParentId(parseUser(req.parentId()));
+
+        if (req.labelIds() != null) {
+            Set<Label> taskLabels = new HashSet<>();
+            for (String lid : req.labelIds()) {
+                labels.findById(parseUser(lid)).ifPresent(taskLabels::add);
+            }
+            t.setLabels(taskLabels);
+        }
+
         tasks.save(t);
         return toResponse(t);
     }
@@ -99,7 +147,6 @@ public class BoardService {
     public TaskResponse moveTask(UUID taskId, UUID userId, MoveTaskRequest req) {
         Task t = requireTaskMember(taskId, userId);
         UUID targetColumn = UUID.fromString(req.columnId());
-        // Ensure the target column is in the same workspace the user belongs to.
         requireColumnMember(targetColumn, userId);
         t.setColumnId(targetColumn);
         t.setPosition(req.position());
@@ -113,8 +160,6 @@ public class BoardService {
         tasks.deleteById(taskId);
     }
 
-    // --- helpers ------------------------------------------------------------
-
     private void addColumn(UUID boardId, String name, double position) {
         BoardColumn c = new BoardColumn();
         c.setBoardId(boardId);
@@ -124,22 +169,34 @@ public class BoardService {
     }
 
     private TaskResponse toResponse(Task t) {
-        User assignee = t.getAssigneeId() == null ? null
-                : users.findById(t.getAssigneeId()).orElse(null);
-        return TaskResponse.of(t, assignee);
+        User assignee = t.getAssigneeId() == null ? null : users.findById(t.getAssigneeId()).orElse(null);
+        User reporter = t.getReporterId() == null ? null : users.findById(t.getReporterId()).orElse(null);
+
+        List<LabelResponse> labelRes = t.getLabels().stream().map(LabelResponse::of).toList();
+        int commentCount = comments.findByTaskIdOrderByCreatedAtAsc(t.getId()).size();
+        
+        List<Task> subtasks = tasks.findByParentId(t.getId());
+        int subtaskCount = subtasks.size();
+        
+        // Count subtasks that are in the "Done" column or right-most column.
+        // For simplicity, we just count tasks that are in a column named "Done".
+        int subtasksDone = (int) subtasks.stream().filter(sub -> {
+            return columns.findById(sub.getColumnId())
+                    .map(c -> c.getName().equalsIgnoreCase("Done"))
+                    .orElse(false);
+        }).count();
+
+        return TaskResponse.of(t, assignee, reporter, labelRes, commentCount, subtaskCount, subtasksDone);
     }
 
     private void requireColumnMember(UUID columnId, UUID userId) {
-        BoardColumn col = columns.findById(columnId)
-                .orElseThrow(() -> ApiException.badRequest("Column not found"));
-        Board board = boards.findById(col.getBoardId())
-                .orElseThrow(() -> ApiException.badRequest("Board not found"));
+        BoardColumn col = columns.findById(columnId).orElseThrow(() -> ApiException.badRequest("Column not found"));
+        Board board = boards.findById(col.getBoardId()).orElseThrow(() -> ApiException.badRequest("Board not found"));
         guard.requireMember(board.getWorkspaceId(), userId);
     }
 
     private Task requireTaskMember(UUID taskId, UUID userId) {
-        Task t = tasks.findById(taskId)
-                .orElseThrow(() -> ApiException.badRequest("Task not found"));
+        Task t = tasks.findById(taskId).orElseThrow(() -> ApiException.badRequest("Task not found"));
         requireColumnMember(t.getColumnId(), userId);
         return t;
     }

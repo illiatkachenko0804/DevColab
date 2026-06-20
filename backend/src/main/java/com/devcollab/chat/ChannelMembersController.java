@@ -42,4 +42,13 @@ public class ChannelMembersController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(channels.addMember(channelId, CurrentUser.id(auth), UUID.fromString(req.userId())));
     }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{userId}")
+    public ResponseEntity<Void> remove(
+            @PathVariable UUID channelId,
+            @PathVariable UUID userId,
+            Authentication auth) {
+        channels.removeMember(channelId, CurrentUser.id(auth), userId);
+        return ResponseEntity.noContent().build();
+    }
 }

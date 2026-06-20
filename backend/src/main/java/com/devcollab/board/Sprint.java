@@ -1,6 +1,7 @@
-package com.devcollab.file;
+package com.devcollab.board;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import org.hibernate.annotations.UuidGenerator;
@@ -9,17 +10,18 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "files")
+@Table(name = "sprints")
 @Getter
 @Setter
 @NoArgsConstructor
-public class StoredFile {
+public class Sprint {
 
     @Id
     @UuidGenerator
@@ -28,29 +30,35 @@ public class StoredFile {
     @Column(name = "workspace_id", nullable = false)
     private UUID workspaceId;
 
-    @Column(name = "uploader_id")
-    private UUID uploaderId;
-
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "content_type")
-    private String contentType;
+    private String goal;
 
-    @Column(name = "size_bytes", nullable = false)
-    private long sizeBytes;
+    @Column(nullable = false)
+    private String status = "PLANNING";
 
-    @Column(name = "storage_key", nullable = false)
-    private String storageKey;
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
-    private boolean hidden = false;
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @PrePersist
     void onCreate() {
-        if (createdAt == null) createdAt = Instant.now();
+        Instant now = Instant.now();
+        if (createdAt == null) createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
     }
 }

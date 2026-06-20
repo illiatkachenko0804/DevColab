@@ -43,7 +43,7 @@ public class FileService {
     }
 
     @Transactional
-    public FileResponse upload(UUID workspaceId, UUID userId, MultipartFile file) {
+    public FileResponse upload(UUID workspaceId, UUID userId, MultipartFile file, boolean hidden) {
         guard.requireMember(workspaceId, userId);
         if (file == null || file.isEmpty()) throw ApiException.badRequest("No file provided");
 
@@ -61,6 +61,7 @@ public class FileService {
         f.setContentType(file.getContentType());
         f.setSizeBytes(file.getSize());
         f.setStorageKey(storageKey);
+        f.setHidden(hidden);
         files.save(f);
         return FileResponse.of(f, users.findById(userId).orElse(null));
     }
@@ -68,7 +69,7 @@ public class FileService {
     @Transactional(readOnly = true)
     public List<FileResponse> list(UUID workspaceId, UUID userId) {
         guard.requireMember(workspaceId, userId);
-        return files.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId).stream()
+        return files.findByWorkspaceIdAndHiddenFalseOrderByCreatedAtDesc(workspaceId).stream()
                 .map(f -> FileResponse.of(f, f.getUploaderId() == null ? null
                         : users.findById(f.getUploaderId()).orElse(null)))
                 .toList();

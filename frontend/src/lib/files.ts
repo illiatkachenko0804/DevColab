@@ -15,9 +15,10 @@ export function listFiles(ws: string): Promise<ProjectFile[]> {
   return api(`/api/workspaces/${ws}/files`);
 }
 
-export async function uploadFile(ws: string, file: File, retry = true): Promise<ProjectFile> {
+export async function uploadFile(ws: string, file: File, retry = true, hidden = false): Promise<ProjectFile> {
   const form = new FormData();
   form.append("file", file);
+  if (hidden) form.append("hidden", "true");
   const res = await fetch(`${BASE}/api/workspaces/${ws}/files`, {
     method: "POST",
     credentials: "include",
@@ -25,7 +26,7 @@ export async function uploadFile(ws: string, file: File, retry = true): Promise<
   });
   if (res.status === 401 && retry) {
     const r = await fetch(`${BASE}/api/auth/refresh`, { method: "POST", credentials: "include" });
-    if (r.ok) return uploadFile(ws, file, false);
+    if (r.ok) return uploadFile(ws, file, false, hidden);
   }
   if (!res.ok) throw new ApiError(res.status, "Upload failed");
   return res.json();

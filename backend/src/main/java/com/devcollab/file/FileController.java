@@ -33,9 +33,10 @@ public class FileController {
     public ResponseEntity<FileResponse> upload(
             @PathVariable UUID workspaceId,
             @RequestParam("file") MultipartFile file,
+            @RequestParam(name = "hidden", required = false, defaultValue = "false") boolean hidden,
             Authentication auth) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(files.upload(workspaceId, CurrentUser.id(auth), file));
+                .body(files.upload(workspaceId, CurrentUser.id(auth), file, hidden));
     }
 
     @GetMapping("/api/workspaces/{workspaceId}/files")

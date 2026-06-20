@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.devcollab.chat.dto.ChannelResponse;
 import com.devcollab.chat.dto.CreateChannelRequest;
 import com.devcollab.chat.dto.CreateDmRequest;
+import com.devcollab.chat.dto.UpdateChannelRequest;
 import com.devcollab.common.web.CurrentUser;
 
 import jakarta.validation.Valid;
@@ -51,5 +52,14 @@ public class ChannelController {
             Authentication auth) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(channels.findOrCreateDm(workspaceId, CurrentUser.id(auth), UUID.fromString(req.userId())));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/channels/{channelId}")
+    public ChannelResponse update(
+            @PathVariable UUID workspaceId,
+            @PathVariable UUID channelId,
+            @RequestBody UpdateChannelRequest req,
+            Authentication auth) {
+        return channels.updateChannel(channelId, CurrentUser.id(auth), req);
     }
 }

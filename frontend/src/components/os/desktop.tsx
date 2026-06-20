@@ -12,6 +12,7 @@ import { SettingsApp } from "@/components/apps/settings-app";
 import { SnippetsApp } from "@/components/apps/snippets-app";
 import { appMeta, type AppId } from "@/lib/apps";
 import { fetchPresence } from "@/lib/chat";
+import type { NotificationItem } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 import { addConnectListener, subscribe, wsConnect, wsDisconnect } from "@/lib/ws";
 import { focusedApp, useOS } from "@/stores/os";
@@ -19,6 +20,7 @@ import { CommandPalette } from "./command-palette";
 import { Dock } from "./dock";
 import { MenuBar } from "./menu-bar";
 import { NotificationCenter } from "./notification-center";
+import { usePushToast } from "./toast-notifications";
 import { DesktopWidgets } from "./widgets";
 import { WindowFrame } from "./window-frame";
 
@@ -70,14 +72,19 @@ export function Desktop() {
   const isMobile = useIsMobile();
   const constraintsRef = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
+  const pushToast = usePushToast();
 
   // Realtime connection + live presence + notifications for the whole session.
   useEffect(() => {
     wsConnect();
     const unsubPresence = subscribe("/topic/presence", (ids) => setOnline(ids as string[]));
-    const unsubNotif = subscribe("/user/queue/notifications", () => {
+    const unsubNotif = subscribe("/user/queue/notifications", (raw) => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["channels"] });
+      // Show a banner toast for the incoming notification.
+      if (raw && typeof raw === "object" && "id" in (raw as Record<string, unknown>)) {
+        pushToast(raw as NotificationItem);
+      }
     });
     // Refresh the presence snapshot on every (re)connect — by then we're online too.
     const unsubConnect = addConnectListener(() => {

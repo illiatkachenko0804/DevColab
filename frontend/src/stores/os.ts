@@ -3,6 +3,8 @@ import type { AppId } from "@/lib/apps";
 import type { AuthUser } from "@/lib/auth";
 import type { Workspace } from "@/lib/workspaces";
 
+const WS_KEY = "devcollab.workspace";
+
 export interface WinState {
   app: AppId;
   x: number;
@@ -39,6 +41,7 @@ interface OSState {
   notifOpen: boolean;
   accent: string;
   online: string[];
+  pendingChat: string | null;
 
   setOnline: (ids: string[]) => void;
   setSession: (user: AuthUser) => void;
@@ -60,6 +63,7 @@ interface OSState {
   toggleCommand: () => void;
   setNotifOpen: (open: boolean) => void;
   toggleNotif: () => void;
+  setPendingChat: (channelId: string | null) => void;
 }
 
 function spawn(app: AppId, index: number, z: number): WinState {
@@ -88,6 +92,7 @@ export const useOS = create<OSState>((set) => ({
   notifOpen: false,
   accent: "#007aff",
   online: [],
+  pendingChat: null,
 
   setOnline: (ids) => set({ online: ids }),
 
@@ -107,22 +112,29 @@ export const useOS = create<OSState>((set) => ({
     }),
 
   setWorkspaces: (workspaces) =>
-    set((s) => ({
-      workspaces,
-      workspacesLoaded: true,
-      activeWorkspace: workspaces.some((w) => w.id === s.activeWorkspace)
-        ? s.activeWorkspace
-        : (workspaces[0]?.id ?? ""),
-    })),
+    set((s) => {
+      const saved = typeof window !== "undefined" ? localStorage.getItem(WS_KEY) : null;
+      const preferred = saved && workspaces.some((w) => w.id === saved) ? saved : null;
+      const active = preferred
+        ?? (workspaces.some((w) => w.id === s.activeWorkspace) ? s.activeWorkspace : null)
+        ?? (workspaces[0]?.id ?? "");
+      if (typeof window !== "undefined") localStorage.setItem(WS_KEY, active);
+      return { workspaces, workspacesLoaded: true, activeWorkspace: active };
+    }),
 
-  addWorkspace: (workspace) =>
+  addWorkspace: (workspace) => {
+    if (typeof window !== "undefined") localStorage.setItem(WS_KEY, workspace.id);
     set((s) => ({
       workspaces: [...s.workspaces, workspace],
       workspacesLoaded: true,
       activeWorkspace: workspace.id,
-    })),
+    }));
+  },
 
-  setWorkspace: (id) => set({ activeWorkspace: id }),
+  setWorkspace: (id) => {
+    if (typeof window !== "undefined") localStorage.setItem(WS_KEY, id);
+    set({ activeWorkspace: id });
+  },
 
   setAccent: (c) => {
     if (typeof window !== "undefined") {
@@ -200,6 +212,7 @@ export const useOS = create<OSState>((set) => ({
   toggleCommand: () => set((s) => ({ commandOpen: !s.commandOpen })),
   setNotifOpen: (open) => set({ notifOpen: open }),
   toggleNotif: () => set((s) => ({ notifOpen: !s.notifOpen })),
+  setPendingChat: (channelId) => set({ pendingChat: channelId }),
 }));
 
 /** The focused (top-most, non-minimized) app, or null if the desktop is showing. */

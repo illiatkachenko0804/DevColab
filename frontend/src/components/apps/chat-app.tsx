@@ -44,6 +44,9 @@ export function ChatApp() {
   const texts = channels.filter((c) => c.type === "TEXT");
   const dms = channels.filter((c) => c.type === "DM");
 
+  const pendingChat = useOS((s) => s.pendingChat);
+  const setPendingChat = useOS((s) => s.setPendingChat);
+
   useEffect(() => {
     if (channels.length === 0) {
       if (selectedId) setSelectedId("");
@@ -53,6 +56,14 @@ export function ChatApp() {
       setSelectedId(texts[0]?.id ?? channels[0].id);
     }
   }, [channels, selectedId, texts]);
+
+  // Deep-link from toast notification: switch to the requested channel.
+  useEffect(() => {
+    if (pendingChat && channels.some((c) => c.id === pendingChat)) {
+      setSelectedId(pendingChat);
+      setPendingChat(null);
+    }
+  }, [pendingChat, channels, setPendingChat]);
 
   const selected = channels.find((c) => c.id === selectedId);
 

@@ -40,7 +40,7 @@ export function DesktopWidgets() {
   const firstName = (user?.displayName ?? currentUser.name).split(" ")[0];
   const board = wsBoard(ws);
   const membersQuery = useQuery({ queryKey: ["members", ws], queryFn: () => listMembers(ws), enabled: !!ws });
-  const online = (membersQuery.data ?? []).filter((m) => onlineIds.includes(m.id));
+  const online = (membersQuery.data ?? []).filter((m) => onlineIds.includes(m.id) && m.id !== user?.id);
   const activities = wsActivities(ws);
 
   // First few tasks from the "In Progress" / first columns.

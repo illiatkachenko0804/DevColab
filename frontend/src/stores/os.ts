@@ -43,6 +43,7 @@ interface OSState {
   online: string[];
   pendingChat: string | null;
   pendingTask: string | null;
+  pendingSnippet: string | null;
 
   setOnline: (ids: string[]) => void;
   setSession: (user: AuthUser) => void;
@@ -66,6 +67,7 @@ interface OSState {
   toggleNotif: () => void;
   setPendingChat: (channelId: string | null) => void;
   setPendingTask: (taskId: string | null) => void;
+  setPendingSnippet: (snippetId: string | null) => void;
 }
 
 function spawn(app: AppId, index: number, z: number): WinState {
@@ -96,6 +98,7 @@ export const useOS = create<OSState>((set) => ({
   online: [],
   pendingChat: null,
   pendingTask: null,
+  pendingSnippet: null,
 
   setOnline: (ids) => set({ online: ids }),
 
@@ -217,6 +220,7 @@ export const useOS = create<OSState>((set) => ({
   toggleNotif: () => set((s) => ({ notifOpen: !s.notifOpen })),
   setPendingChat: (id) => set({ pendingChat: id }),
   setPendingTask: (id) => set({ pendingTask: id }),
+  setPendingSnippet: (id) => set({ pendingSnippet: id }),
 }));
 
 /** The focused (top-most, non-minimized) app, or null if the desktop is showing. */

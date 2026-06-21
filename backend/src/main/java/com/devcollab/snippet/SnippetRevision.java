@@ -15,11 +15,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "snippet_comments")
+@Table(name = "snippet_revisions")
 @Getter
 @Setter
 @NoArgsConstructor
-public class SnippetComment {
+public class SnippetRevision {
 
     @Id
     @UuidGenerator
@@ -28,17 +28,20 @@ public class SnippetComment {
     @Column(name = "snippet_id", nullable = false)
     private UUID snippetId;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    @Column(nullable = false)
+    private String code;
 
     @Column(nullable = false)
-    private String content;
+    private String language;
+
+    @Column
+    private String message;
+
+    @Column(name = "user_id")
+    private UUID userId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
-
-    @Column(name = "edited_at")
-    private Instant editedAt;
 
     @PrePersist
     void onCreate() {

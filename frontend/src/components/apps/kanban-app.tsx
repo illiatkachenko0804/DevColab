@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type Modifier,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -21,7 +22,8 @@ import {
   ArrowUp, ArrowRight, ArrowDown, AlertCircle,
   MessageSquare, Layers, Search, List as ListIcon, KanbanSquare
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Avatar } from "@/components/ui/avatar";
 import {
   createTask as apiCreateTask,
@@ -34,6 +36,7 @@ import {
 } from "@/lib/board";
 import { listMembers } from "@/lib/members";
 import { getSprints } from "@/lib/sprints";
+import { subscribe } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 import { useOS } from "@/stores/os";
 import { TaskDetail } from "./task-detail";
@@ -43,6 +46,7 @@ export function KanbanApp() {
   const ws = useOS((s) => s.activeWorkspace);
   const qc = useQueryClient();
   const boardQuery = useQuery({ queryKey: ["board", ws], queryFn: () => getBoard(ws), enabled: !!ws });
+  const appRef = useRef<HTMLDivElement>(null);
 
   const [cols, setCols] = useState<BoardColumn[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -63,9 +67,29 @@ export function KanbanApp() {
   const sprintsQuery = useQuery({ queryKey: ["sprints", ws], queryFn: () => getSprints(ws), enabled: !!ws });
   const sprints = sprintsQuery.data ?? [];
 
+  const activeIdRef = useRef(activeId);
   useEffect(() => {
-    if (boardQuery.data) setCols(boardQuery.data.columns);
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
+  useEffect(() => {
+    if (boardQuery.data && !activeIdRef.current) setCols(boardQuery.data.columns);
   }, [boardQuery.data]);
+
+  // WebSocket Subscriptions
+  useEffect(() => {
+    if (!ws) return;
+    const unsubBoard = subscribe(`/topic/workspace.${ws}.board`, (raw) => {
+      qc.invalidateQueries({ queryKey: ["board", ws] });
+    });
+    const unsubSprints = subscribe(`/topic/workspace.${ws}.sprints`, (raw) => {
+      qc.invalidateQueries({ queryKey: ["sprints", ws] });
+    });
+    return () => {
+      unsubBoard();
+      unsubSprints();
+    };
+  }, [ws, qc]);
 
   const allTasks = useMemo(() => cols.flatMap((c) => c.tasks), [cols]);
   const taskById = useMemo(() => {
@@ -73,6 +97,16 @@ export function KanbanApp() {
     allTasks.forEach((t) => (m[t.id] = t));
     return m;
   }, [allTasks]);
+
+  // Keep openTask in sync with live board data
+  useEffect(() => {
+    if (openTask) {
+      const updated = taskById[openTask.id];
+      if (updated && updated !== openTask) {
+        setOpenTask(updated);
+      }
+    }
+  }, [openTask, taskById]);
 
   // Handle deep linking
   useEffect(() => {
@@ -90,7 +124,13 @@ export function KanbanApp() {
       ...c,
       tasks: c.tasks.filter((t) => {
         if (selectedSprintId !== "ALL" && t.sprintId !== (selectedSprintId === "BACKLOG" ? null : selectedSprintId)) return false;
-        if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase()) && !t.taskKey.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        if (searchQuery) {
+          const sq = searchQuery.toLowerCase();
+          const matchTitle = t.title.toLowerCase().includes(sq);
+          const matchKey = t.taskKey.toLowerCase().includes(sq);
+          const matchDesc = t.description?.toLowerCase().includes(sq);
+          if (!matchTitle && !matchKey && !matchDesc) return false;
+        }
         return true;
       }),
     }));
@@ -120,16 +160,14 @@ export function KanbanApp() {
     if (!moved) return;
     setCols((prev) =>
       prev.map((c) => {
-        if (c.id === from.id) return { ...c, tasks: c.tasks.filter((t) => t.id !== active.id) };
+        let nextTasks = c.tasks.filter((t) => t.id !== active.id);
         if (c.id === to.id) {
-          const overIdx = c.tasks.findIndex((t) => t.id === over.id);
-          const idx = overIdx >= 0 ? overIdx : c.tasks.length;
-          const next = [...c.tasks];
-          next.splice(idx, 0, moved);
-          return { ...c, tasks: next };
+          const overIdx = nextTasks.findIndex((t) => t.id === over.id);
+          const idx = overIdx >= 0 ? overIdx : nextTasks.length;
+          nextTasks.splice(idx, 0, moved);
         }
-        return c;
-      }),
+        return { ...c, tasks: nextTasks };
+      })
     );
   };
 
@@ -153,8 +191,18 @@ export function KanbanApp() {
     move.mutate({ taskId: active.id as string, columnId: col.id, position });
   };
 
+  const restrictToApp: Modifier = ({ transform, draggingNodeRect }) => {
+    if (!appRef.current || !draggingNodeRect) return transform;
+    const rect = appRef.current.getBoundingClientRect();
+    return {
+      ...transform,
+      x: Math.max(rect.left - draggingNodeRect.left, Math.min(rect.right - draggingNodeRect.right, transform.x)),
+      y: Math.max(rect.top - draggingNodeRect.top, Math.min(rect.bottom - draggingNodeRect.bottom, transform.y)),
+    };
+  };
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-surface/30">
+    <div ref={appRef} className="flex min-h-0 flex-1 flex-col bg-surface/30">
       {/* Toolbar */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-separator px-4 bg-surface">
         <div className="flex items-center gap-4">
@@ -228,7 +276,14 @@ export function KanbanApp() {
                 />
               ))}
             </div>
-            <DragOverlay>{activeId && taskById[activeId] ? <TaskCard task={taskById[activeId]} dragging /> : null}</DragOverlay>
+            {typeof document !== "undefined"
+              ? createPortal(
+                  <DragOverlay modifiers={[restrictToApp]}>
+                    {activeId && taskById[activeId] ? <TaskCard task={taskById[activeId]} dragging /> : null}
+                  </DragOverlay>,
+                  document.body
+                )
+              : null}
           </DndContext>
         </div>
       ) : (
@@ -326,7 +381,7 @@ function TaskCard({ task, dragging }: { task: BoardTask; dragging?: boolean }) {
 
       {task.labels && task.labels.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {task.labels.map((l) => (
+          {[...task.labels].sort((a, b) => a.name.localeCompare(b.name)).map((l) => (
             <span key={l.id} className="rounded px-1.5 py-0.5 text-[10px] font-medium" style={{ backgroundColor: `${l.color}20`, color: l.color }}>
               {l.name}
             </span>

@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.devcollab.board.dto.CommentResponse;
 import com.devcollab.board.dto.CreateCommentRequest;
@@ -23,23 +24,26 @@ public class TaskCommentService {
     private final BoardRepository boards;
     private final UserRepository users;
     private final WorkspaceGuard guard;
+    private final SimpMessagingTemplate broker;
 
     public TaskCommentService(TaskCommentRepository comments, TaskRepository tasks,
                               BoardColumnRepository columns, BoardRepository boards,
-                              UserRepository users, WorkspaceGuard guard) {
+                              UserRepository users, WorkspaceGuard guard, SimpMessagingTemplate broker) {
         this.comments = comments;
         this.tasks = tasks;
         this.columns = columns;
         this.boards = boards;
         this.users = users;
         this.guard = guard;
+        this.broker = broker;
     }
 
-    private void requireTaskAccess(UUID taskId, UUID userId) {
+    private UUID requireTaskAccess(UUID taskId, UUID userId) {
         Task t = tasks.findById(taskId).orElseThrow(() -> ApiException.badRequest("Task not found"));
         BoardColumn col = columns.findById(t.getColumnId()).orElseThrow();
         Board b = boards.findById(col.getBoardId()).orElseThrow();
         guard.requireMember(b.getWorkspaceId(), userId);
+        return b.getWorkspaceId();
     }
 
     @Transactional(readOnly = true)
@@ -54,12 +58,13 @@ public class TaskCommentService {
 
     @Transactional
     public CommentResponse createComment(UUID taskId, UUID userId, CreateCommentRequest req) {
-        requireTaskAccess(taskId, userId);
+        UUID wsId = requireTaskAccess(taskId, userId);
         TaskComment c = new TaskComment();
         c.setTaskId(taskId);
         c.setUserId(userId);
         c.setContent(req.content());
         comments.save(c);
+        broadcastCommentUpdate(wsId, taskId);
         return CommentResponse.of(c, users.findById(userId).orElse(null));
     }
 
@@ -70,8 +75,9 @@ public class TaskCommentService {
         if (!c.getUserId().equals(userId)) {
             throw ApiException.badRequest("You can only delete your own comments");
         }
-        requireTaskAccess(c.getTaskId(), userId);
+        UUID wsId = requireTaskAccess(c.getTaskId(), userId);
         comments.delete(c);
+        broadcastCommentUpdate(wsId, c.getTaskId());
     }
 
     @Transactional
@@ -81,12 +87,18 @@ public class TaskCommentService {
         if (!c.getUserId().equals(userId)) {
             throw ApiException.badRequest("You can only edit your own comments");
         }
-        requireTaskAccess(c.getTaskId(), userId);
+        UUID wsId = requireTaskAccess(c.getTaskId(), userId);
         if (req.content() != null && !req.content().isBlank()) {
             c.setContent(req.content());
             c.setEditedAt(Instant.now());
         }
         comments.save(c);
+        broadcastCommentUpdate(wsId, c.getTaskId());
         return CommentResponse.of(c, users.findById(userId).orElse(null));
+    }
+
+    private void broadcastCommentUpdate(UUID workspaceId, UUID taskId) {
+        broker.convertAndSend("/topic/task." + taskId + ".comments", "{\"type\":\"COMMENT_UPDATE\"}");
+        broker.convertAndSend("/topic/workspace." + workspaceId + ".board", "{\"type\":\"BOARD_UPDATE\"}");
     }
 }

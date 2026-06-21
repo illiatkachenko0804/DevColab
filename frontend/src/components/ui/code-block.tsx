@@ -13,11 +13,13 @@ export function CodeBlock({
   lang,
   className,
   copyable = true,
+  minimal = false,
 }: {
   code: string;
   lang: string;
   className?: string;
   copyable?: boolean;
+  minimal?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
   const [html, setHtml] = useState<string | null>(null);
@@ -44,6 +46,14 @@ export function CodeBlock({
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
   };
+
+  if (minimal) {
+    return html ? (
+      <div className={cn("font-mono [&_pre]:!bg-transparent [&_pre]:m-0 [&_pre]:p-0", className)} dangerouslySetInnerHTML={{ __html: html }} />
+    ) : (
+      <pre className={cn("font-mono m-0 p-0 text-foreground/80", className)}>{code}</pre>
+    );
+  }
 
   return (
     <div

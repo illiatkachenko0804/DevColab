@@ -357,6 +357,23 @@ export function ChatApp() {
                                     </button>
                                   );
                                 }
+                                const snippetMatch = href?.match(/snippets:\/\/snippet\/([^"'\s]+)/);
+                                if (snippetMatch) {
+                                  return (
+                                    <button 
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        useOS.getState().setPendingSnippet(snippetMatch[1]);
+                                        useOS.getState().openApp("snippets");
+                                      }} 
+                                      className="text-accent hover:underline decoration-accent underline-offset-2 inline-flex items-center gap-1 font-medium"
+                                    >
+                                      {children}
+                                    </button>
+                                  );
+                                }
                                 return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
                               },
                               p: ({ children }) => <p className="mb-1 last:mb-0 whitespace-pre-wrap break-words">{children}</p>
@@ -450,7 +467,7 @@ function ChatEditorInput({ selected, inChannel, onSend }: { selected: Channel, i
       Underline,
       Link.configure({ 
         openOnClick: false,
-        protocols: ["http", "https", "mailto", "tel", "projects", "kanban", "mention"]
+        protocols: ["http", "https", "mailto", "tel", "projects", "kanban", "mention", "snippets"]
       }),
       Markdown,
       Placeholder.configure({ placeholder: selected.type === "DM" ? `Message ${selected.name}` : `Message #${selected.name}` }),

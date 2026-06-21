@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X, CalendarClock, MessageSquare, Trash2, CheckSquare, Bug, Bookmark, Zap, ArrowUp, ArrowRight, ArrowDown, AlertCircle, Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, Link as LinkIcon, Eraser } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -26,6 +26,7 @@ import { LabelPicker } from "./label-picker";
 import { Copy } from "lucide-react";
 import { useMemo } from "react";
 import { useOS } from "@/stores/os";
+import { subscribe } from "@/lib/ws";
 
 export function TypeIcon({ type, className }: { type: BoardTask["type"]; className?: string }) {
   switch (type) {
@@ -211,6 +212,20 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
   const members = membersQuery.data ?? [];
   const comments = commentsQuery.data ?? [];
 
+  useEffect(() => {
+    if (!ws || !task.id) return;
+    const unsubBoard = subscribe(`/topic/workspace.${ws}.board`, () => {
+      qc.invalidateQueries({ queryKey: ["board", ws] });
+    });
+    const unsubComments = subscribe(`/topic/task.${task.id}.comments`, () => {
+      qc.invalidateQueries({ queryKey: ["comments", task.id] });
+    });
+    return () => {
+      unsubBoard();
+      unsubComments();
+    };
+  }, [ws, task.id, qc]);
+
   const save = useMutation({
     mutationFn: () => apiUpdateTask(task.id, {
       title: title.trim(),
@@ -304,19 +319,22 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
                 placeholder="Task title"
               />
               <button 
-                onClick={() => {
-                  const html = new Blob([`<a href="projects://task/${task.id}">${task.taskKey}</a>`], { type: 'text/html' });
-                  const text = new Blob([`[${task.taskKey}](projects://task/${task.id})`], { type: 'text/plain' });
-                  navigator.clipboard.write([new ClipboardItem({ 'text/html': html, 'text/plain': text })]).then(() => {
-                    setIsCopied(true);
-                    setTimeout(() => setIsCopied(false), 2000);
-                  });
+                className={cn("absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-surface border text-xs font-medium cursor-pointer flex items-center gap-1.5", isCopied ? "border-success text-success" : "border-separator text-muted hover:border-accent hover:text-accent")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const mdLink = `[${task.taskKey}](projects://task/${task.id}) ${task.title}`;
+                  navigator.clipboard.write([
+                    new ClipboardItem({
+                      "text/plain": new Blob([mdLink], { type: "text/plain" }),
+                      "text/html": new Blob([`<a href="projects://task/${task.id}">${task.taskKey}</a> ${task.title}`], { type: "text/html" })
+                    })
+                  ]);
+                  setIsCopied(true);
+                  setTimeout(() => setIsCopied(false), 2000);
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-surface border border-separator text-muted hover:text-foreground hover:border-accent shadow-sm flex items-center gap-1.5 text-xs font-medium cursor-pointer"
-                title="Copy Link to Task"
               >
-                <Copy className="h-3.5 w-3.5" />
-                {isCopied ? "Copied!" : "Copy Link"}
+                <Copy className="h-3 w-3" />
+                {isCopied ? "Copied" : "Copy Link"}
               </button>
             </div>
 
@@ -469,7 +487,7 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
               <div>
                 <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Labels</label>
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {task.labels.map(l => (
+                  {[...task.labels].sort((a, b) => a.name.localeCompare(b.name)).map(l => (
                     <span key={l.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium" style={{ backgroundColor: `${l.color}20`, color: l.color }}>
                       {l.name}
                     </span>

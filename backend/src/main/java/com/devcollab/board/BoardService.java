@@ -8,6 +8,7 @@ import java.util.HashSet;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.devcollab.board.dto.BoardResponse;
 import com.devcollab.board.dto.ColumnResponse;
@@ -34,11 +35,12 @@ public class BoardService {
     private final TaskCommentRepository comments;
     private final LabelRepository labels;
     private final WorkspaceRepository workspaces;
+    private final SimpMessagingTemplate broker;
 
     public BoardService(
             BoardRepository boards, BoardColumnRepository columns, TaskRepository tasks,
             UserRepository users, WorkspaceGuard guard, TaskCommentRepository comments,
-            LabelRepository labels, WorkspaceRepository workspaces) {
+            LabelRepository labels, WorkspaceRepository workspaces, SimpMessagingTemplate broker) {
         this.boards = boards;
         this.columns = columns;
         this.tasks = tasks;
@@ -47,6 +49,7 @@ public class BoardService {
         this.comments = comments;
         this.labels = labels;
         this.workspaces = workspaces;
+        this.broker = broker;
     }
 
     @Transactional
@@ -103,6 +106,12 @@ public class BoardService {
         t.setStoryPoints(req.storyPoints());
         t.setSprintId(parseUser(req.sprintId()));
         t.setParentId(parseUser(req.parentId()));
+        if (t.getParentId() != null) {
+            Task parent = tasks.findById(t.getParentId()).orElse(null);
+            if (parent != null) {
+                t.setSprintId(parent.getSprintId());
+            }
+        }
         t.setReporterId(userId);
 
         if (req.labelIds() != null) {
@@ -114,6 +123,7 @@ public class BoardService {
         }
 
         tasks.save(t);
+        broadcastBoardUpdate(board.getWorkspaceId());
         return toResponse(t);
     }
 
@@ -140,24 +150,39 @@ public class BoardService {
         }
 
         tasks.save(t);
+        BoardColumn col = columns.findById(t.getColumnId()).orElseThrow();
+        Board board = boards.findById(col.getBoardId()).orElseThrow();
+        broadcastBoardUpdate(board.getWorkspaceId());
         return toResponse(t);
     }
 
     @Transactional
     public TaskResponse moveTask(UUID taskId, UUID userId, MoveTaskRequest req) {
         Task t = requireTaskMember(taskId, userId);
-        UUID targetColumn = UUID.fromString(req.columnId());
-        requireColumnMember(targetColumn, userId);
-        t.setColumnId(targetColumn);
+        UUID targetColumnId = UUID.fromString(req.columnId());
+        requireColumnMember(targetColumnId, userId);
+        
+        BoardColumn targetColumn = columns.findById(targetColumnId).orElseThrow();
+        BoardColumn currentColumn = columns.findById(t.getColumnId()).orElseThrow();
+
+
+
+        t.setColumnId(targetColumnId);
         t.setPosition(req.position());
         tasks.save(t);
+
+        Board board = boards.findById(targetColumn.getBoardId()).orElseThrow();
+        broadcastBoardUpdate(board.getWorkspaceId());
         return toResponse(t);
     }
 
     @Transactional
     public void deleteTask(UUID taskId, UUID userId) {
-        requireTaskMember(taskId, userId);
+        Task t = requireTaskMember(taskId, userId);
         tasks.deleteById(taskId);
+        BoardColumn col = columns.findById(t.getColumnId()).orElseThrow();
+        Board board = boards.findById(col.getBoardId()).orElseThrow();
+        broadcastBoardUpdate(board.getWorkspaceId());
     }
 
     private void addColumn(UUID boardId, String name, double position) {
@@ -217,5 +242,9 @@ public class BoardService {
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
+    }
+
+    private void broadcastBoardUpdate(UUID workspaceId) {
+        broker.convertAndSend("/topic/workspace." + workspaceId + ".board", "{\"type\":\"BOARD_UPDATE\"}");
     }
 }

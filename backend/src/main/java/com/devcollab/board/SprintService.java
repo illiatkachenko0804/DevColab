@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.devcollab.board.dto.CreateSprintRequest;
 import com.devcollab.board.dto.SprintResponse;
@@ -17,10 +18,12 @@ public class SprintService {
 
     private final SprintRepository sprints;
     private final WorkspaceGuard guard;
+    private final SimpMessagingTemplate broker;
 
-    public SprintService(SprintRepository sprints, WorkspaceGuard guard) {
+    public SprintService(SprintRepository sprints, WorkspaceGuard guard, SimpMessagingTemplate broker) {
         this.sprints = sprints;
         this.guard = guard;
+        this.broker = broker;
     }
 
     private SprintResponse toResponse(Sprint s) {
@@ -45,6 +48,7 @@ public class SprintService {
         if (req.startDate() != null) s.setStartDate(java.time.LocalDate.parse(req.startDate()));
         if (req.endDate() != null) s.setEndDate(java.time.LocalDate.parse(req.endDate()));
         sprints.save(s);
+        broadcastSprintsUpdate(s.getWorkspaceId());
         return toResponse(s);
     }
 
@@ -59,6 +63,7 @@ public class SprintService {
         if (req.startDate() != null) s.setStartDate(java.time.LocalDate.parse(req.startDate()));
         if (req.endDate() != null) s.setEndDate(java.time.LocalDate.parse(req.endDate()));
         sprints.save(s);
+        broadcastSprintsUpdate(s.getWorkspaceId());
         return toResponse(s);
     }
 
@@ -68,6 +73,7 @@ public class SprintService {
                 .orElseThrow(() -> ApiException.badRequest("Sprint not found"));
         guard.requireMember(s.getWorkspaceId(), userId);
         sprints.delete(s);
+        broadcastSprintsUpdate(s.getWorkspaceId());
     }
 
     @Transactional
@@ -77,6 +83,7 @@ public class SprintService {
         guard.requireMember(s.getWorkspaceId(), userId);
         s.setStatus("ACTIVE");
         sprints.save(s);
+        broadcastSprintsUpdate(s.getWorkspaceId());
         return toResponse(s);
     }
 
@@ -87,7 +94,12 @@ public class SprintService {
         guard.requireMember(s.getWorkspaceId(), userId);
         s.setStatus("COMPLETED");
         sprints.save(s);
+        broadcastSprintsUpdate(s.getWorkspaceId());
         // Note: Moving tasks to backlog will be implemented in BoardService later if needed.
         return toResponse(s);
+    }
+
+    private void broadcastSprintsUpdate(UUID workspaceId) {
+        broker.convertAndSend("/topic/workspace." + workspaceId + ".sprints", "{\"type\":\"SPRINTS_UPDATE\"}");
     }
 }

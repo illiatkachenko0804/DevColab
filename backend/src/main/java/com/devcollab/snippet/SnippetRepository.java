@@ -7,4 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SnippetRepository extends JpaRepository<Snippet, UUID> {
     List<Snippet> findByWorkspaceIdOrderByCreatedAtDesc(UUID workspaceId);
+    long countByWorkspaceIdAndCollectionId(UUID workspaceId, UUID collectionId);
 }

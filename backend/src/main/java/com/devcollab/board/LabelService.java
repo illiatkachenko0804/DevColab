@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.devcollab.board.dto.CreateLabelRequest;
 import com.devcollab.board.dto.LabelResponse;
@@ -17,11 +18,13 @@ public class LabelService {
     private final LabelRepository labels;
     private final WorkspaceGuard guard;
     private final TaskRepository tasks;
+    private final SimpMessagingTemplate broker;
 
-    public LabelService(LabelRepository labels, WorkspaceGuard guard, TaskRepository tasks) {
+    public LabelService(LabelRepository labels, WorkspaceGuard guard, TaskRepository tasks, SimpMessagingTemplate broker) {
         this.labels = labels;
         this.guard = guard;
         this.tasks = tasks;
+        this.broker = broker;
     }
 
     @Transactional(readOnly = true)
@@ -39,6 +42,7 @@ public class LabelService {
         l.setName(req.name());
         l.setColor(req.color());
         labels.save(l);
+        broadcastBoardUpdate(l.getWorkspaceId());
         return LabelResponse.of(l);
     }
 
@@ -48,6 +52,7 @@ public class LabelService {
                 .orElseThrow(() -> ApiException.badRequest("Label not found"));
         guard.requireMember(l.getWorkspaceId(), userId);
         labels.delete(l);
+        broadcastBoardUpdate(l.getWorkspaceId());
     }
 
     @Transactional
@@ -58,6 +63,7 @@ public class LabelService {
         if (req.name() != null) l.setName(req.name());
         if (req.color() != null) l.setColor(req.color());
         labels.save(l);
+        broadcastBoardUpdate(l.getWorkspaceId());
         return LabelResponse.of(l);
     }
 
@@ -68,6 +74,7 @@ public class LabelService {
         guard.requireMember(l.getWorkspaceId(), userId);
         t.getLabels().add(l);
         tasks.save(t);
+        broadcastBoardUpdate(l.getWorkspaceId());
     }
 
     @Transactional
@@ -77,5 +84,10 @@ public class LabelService {
         guard.requireMember(l.getWorkspaceId(), userId);
         t.getLabels().remove(l);
         tasks.save(t);
+        broadcastBoardUpdate(l.getWorkspaceId());
+    }
+
+    private void broadcastBoardUpdate(UUID workspaceId) {
+        broker.convertAndSend("/topic/workspace." + workspaceId + ".board", "{\"type\":\"BOARD_UPDATE\"}");
     }
 }

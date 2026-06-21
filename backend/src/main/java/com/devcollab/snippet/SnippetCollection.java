@@ -15,30 +15,36 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "snippet_comments")
+@Table(name = "snippet_collections")
 @Getter
 @Setter
 @NoArgsConstructor
-public class SnippetComment {
+public class SnippetCollection {
 
     @Id
     @UuidGenerator
     private UUID id;
 
-    @Column(name = "snippet_id", nullable = false)
-    private UUID snippetId;
-
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    @Column(name = "workspace_id", nullable = false)
+    private UUID workspaceId;
 
     @Column(nullable = false)
-    private String content;
+    private String name;
+
+    @Column(nullable = false)
+    private String color = "#8e8e93";
+
+    @Column
+    private String icon = "folder";
+
+    @Column(nullable = false)
+    private Double position = 1000.0;
+
+    @Column(name = "created_by")
+    private UUID createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
-
-    @Column(name = "edited_at")
-    private Instant editedAt;
 
     @PrePersist
     void onCreate() {

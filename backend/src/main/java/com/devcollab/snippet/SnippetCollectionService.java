@@ -8,20 +8,24 @@ import org.springframework.transaction.annotation.Transactional;
 import com.devcollab.snippet.dto.CollectionResponse;
 import com.devcollab.snippet.dto.CreateCollectionRequest;
 import com.devcollab.snippet.dto.UpdateCollectionRequest;
+import com.devcollab.workspace.WorkspaceGuard;
 
 @Service
 public class SnippetCollectionService {
     private final SnippetCollectionRepository collections;
     private final SnippetRepository snippets;
     private final SimpMessagingTemplate broker;
+    private final WorkspaceGuard guard;
 
-    public SnippetCollectionService(SnippetCollectionRepository collections, SnippetRepository snippets, SimpMessagingTemplate broker) {
+    public SnippetCollectionService(SnippetCollectionRepository collections, SnippetRepository snippets, SimpMessagingTemplate broker, WorkspaceGuard guard) {
         this.collections = collections;
         this.snippets = snippets;
         this.broker = broker;
+        this.guard = guard;
     }
 
-    public List<CollectionResponse> listCollections(UUID workspaceId) {
+    public List<CollectionResponse> listCollections(UUID workspaceId, UUID userId) {
+        guard.requirePermission(workspaceId, userId, "viewApps");
         return collections.findByWorkspaceIdOrderByPositionAsc(workspaceId).stream().map(c -> {
             long count = snippets.countByWorkspaceIdAndCollectionId(workspaceId, c.getId());
             return new CollectionResponse(
@@ -31,6 +35,7 @@ public class SnippetCollectionService {
 
     @Transactional
     public CollectionResponse createCollection(UUID workspaceId, UUID userId, CreateCollectionRequest req) {
+        guard.requirePermission(workspaceId, userId, "manageSnippets");
         SnippetCollection c = new SnippetCollection();
         c.setWorkspaceId(workspaceId);
         c.setName(req.name());
@@ -48,7 +53,8 @@ public class SnippetCollectionService {
     }
 
     @Transactional
-    public CollectionResponse updateCollection(UUID id, UUID workspaceId, UpdateCollectionRequest req) {
+    public CollectionResponse updateCollection(UUID id, UUID workspaceId, UUID userId, UpdateCollectionRequest req) {
+        guard.requirePermission(workspaceId, userId, "manageSnippets");
         SnippetCollection c = collections.findById(id).orElseThrow();
         if (!c.getWorkspaceId().equals(workspaceId)) throw new RuntimeException("Unauthorized");
 
@@ -64,7 +70,8 @@ public class SnippetCollectionService {
     }
 
     @Transactional
-    public void deleteCollection(UUID id, UUID workspaceId) {
+    public void deleteCollection(UUID id, UUID workspaceId, UUID userId) {
+        guard.requirePermission(workspaceId, userId, "manageSnippets");
         SnippetCollection c = collections.findById(id).orElseThrow();
         if (!c.getWorkspaceId().equals(workspaceId)) throw new RuntimeException("Unauthorized");
         collections.delete(c);

@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.devcollab.common.web.CurrentUser;
 import com.devcollab.workspace.dto.InviteRequest;
 import com.devcollab.workspace.dto.MemberResponse;
+import com.devcollab.workspace.dto.UpdateMemberRoleRequest;
+import org.springframework.web.bind.annotation.PatchMapping;
 
 import jakarta.validation.Valid;
 
@@ -50,5 +53,24 @@ public class MemberController {
             Authentication auth) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(members.invite(workspaceId, CurrentUser.id(auth), req.query()));
+    }
+
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<Void> remove(
+            @PathVariable UUID workspaceId,
+            @PathVariable UUID userId,
+            Authentication auth) {
+        members.remove(workspaceId, CurrentUser.id(auth), userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{userId}/role")
+    public ResponseEntity<Void> updateRole(
+            @PathVariable UUID workspaceId,
+            @PathVariable UUID userId,
+            @Valid @RequestBody UpdateMemberRoleRequest req,
+            Authentication auth) {
+        members.updateRole(workspaceId, CurrentUser.id(auth), userId, req);
+        return ResponseEntity.noContent().build();
     }
 }

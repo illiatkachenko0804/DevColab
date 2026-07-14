@@ -7,6 +7,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
 import com.devcollab.auth.dto.LoginRequest;
 import com.devcollab.auth.dto.RegisterRequest;
 import com.devcollab.common.error.ApiException;
@@ -14,6 +16,9 @@ import com.devcollab.email.EmailVerificationService;
 import com.devcollab.email.EmailVerificationService.SentCode;
 import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
+import com.devcollab.workspace.MembershipRepository;
+import com.devcollab.workspace.Membership;
+import java.util.Map;
 
 @Service
 public class AuthService {
@@ -21,11 +26,16 @@ public class AuthService {
     private final UserRepository users;
     private final EmailVerificationService verification;
     private final PasswordEncoder encoder;
+    private final MembershipRepository memberships;
+    private final SimpMessagingTemplate broker;
 
-    public AuthService(UserRepository users, EmailVerificationService verification, PasswordEncoder encoder) {
+    public AuthService(UserRepository users, EmailVerificationService verification, PasswordEncoder encoder,
+                       MembershipRepository memberships, SimpMessagingTemplate broker) {
         this.users = users;
         this.verification = verification;
         this.encoder = encoder;
+        this.memberships = memberships;
+        this.broker = broker;
     }
 
     @Transactional
@@ -99,7 +109,7 @@ public class AuthService {
     }
 
     @Transactional
-    public User updateProfile(UUID userId, String displayName, String devTag) {
+    public User updateProfile(UUID userId, String displayName, String devTag, String avatarUrl) {
         User user = requireById(userId);
         if (displayName != null && !displayName.isBlank()) {
             user.setDisplayName(displayName.trim());
@@ -115,7 +125,18 @@ public class AuthService {
             }
             user.setDevTag(normalized);
         }
-        return users.save(user);
+        if (avatarUrl != null) {
+            user.setAvatarUrl(avatarUrl.isBlank() ? null : avatarUrl.trim());
+        }
+        User saved = users.save(user);
+
+        // Broadcast MEMBER_UPDATED to all workspaces this user belongs to
+        for (Membership m : memberships.findByUserIdOrderByJoinedAtAsc(userId)) {
+            broker.convertAndSend("/topic/workspace." + m.getWorkspaceId() + ".members",
+                    Map.of("type", "MEMBER_UPDATED", "userId", userId.toString()));
+        }
+
+        return saved;
     }
 
     /** Builds a unique @handle from an email or seed string. */

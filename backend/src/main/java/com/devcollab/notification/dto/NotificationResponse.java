@@ -8,4 +8,6 @@ public record NotificationResponse(
         String body,
         String channelId,
         String createdAt,
-        boolean read) {}
+        boolean read,
+        String linkType,
+        String linkId) {}

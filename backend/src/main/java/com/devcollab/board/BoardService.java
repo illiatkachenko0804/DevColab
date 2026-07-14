@@ -9,6 +9,8 @@ import java.util.HashSet;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.devcollab.board.dto.BoardResponse;
 import com.devcollab.board.dto.ColumnResponse;
@@ -23,6 +25,9 @@ import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.WorkspaceGuard;
 import com.devcollab.workspace.Workspace;
 import com.devcollab.workspace.WorkspaceRepository;
+import com.devcollab.notification.NotificationService;
+import com.devcollab.activity.ActivityService;
+import java.util.Map;
 
 @Service
 public class BoardService {
@@ -36,11 +41,14 @@ public class BoardService {
     private final LabelRepository labels;
     private final WorkspaceRepository workspaces;
     private final SimpMessagingTemplate broker;
+    private final NotificationService notifications;
+    private final ActivityService activities;
 
     public BoardService(
             BoardRepository boards, BoardColumnRepository columns, TaskRepository tasks,
             UserRepository users, WorkspaceGuard guard, TaskCommentRepository comments,
-            LabelRepository labels, WorkspaceRepository workspaces, SimpMessagingTemplate broker) {
+            LabelRepository labels, WorkspaceRepository workspaces, SimpMessagingTemplate broker,
+            NotificationService notifications, ActivityService activities) {
         this.boards = boards;
         this.columns = columns;
         this.tasks = tasks;
@@ -50,6 +58,8 @@ public class BoardService {
         this.labels = labels;
         this.workspaces = workspaces;
         this.broker = broker;
+        this.notifications = notifications;
+        this.activities = activities;
     }
 
     @Transactional
@@ -65,7 +75,7 @@ public class BoardService {
 
     @Transactional
     public BoardResponse getBoard(UUID workspaceId, UUID userId) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "viewApps");
         Board board = boards.findByWorkspaceIdOrderByCreatedAtAsc(workspaceId).stream()
                 .findFirst()
                 .orElseGet(() -> {
@@ -85,7 +95,7 @@ public class BoardService {
     public TaskResponse createTask(UUID columnId, UUID userId, CreateTaskRequest req) {
         BoardColumn col = columns.findById(columnId).orElseThrow();
         Board board = boards.findById(col.getBoardId()).orElseThrow();
-        guard.requireMember(board.getWorkspaceId(), userId);
+        guard.requirePermission(board.getWorkspaceId(), userId, "manageTasks");
         Workspace ws = workspaces.findById(board.getWorkspaceId()).orElseThrow();
 
         double max = tasks.findByColumnIdOrderByPositionAsc(columnId).stream()
@@ -124,15 +134,39 @@ public class BoardService {
 
         tasks.save(t);
         broadcastBoardUpdate(board.getWorkspaceId());
+
+        User author = users.findById(userId).orElse(null);
+        String authorName = author != null ? author.getDisplayName() : "Someone";
+
+        if (t.getAssigneeId() != null && !t.getAssigneeId().equals(userId)) {
+            notifications.create(t.getAssigneeId(), board.getWorkspaceId(), "projects", "task_assignment",
+                    Map.of("title", authorName + " assigned you to a task: " + t.getTitle(),
+                            "linkType", "task", "linkId", t.getId().toString()));
+        }
+
+        notifications.notifyMentions(t.getDescription(), board.getWorkspaceId(), userId, authorName, "projects", "task", t.getId().toString(), "{User.displayName} mentioned you in a task");
+
+        activities.log(board.getWorkspaceId(), userId, "task", "created", "created task \"" + t.getTitle() + "\"", t.getId().toString());
+
         return toResponse(t);
     }
 
     @Transactional
     public TaskResponse updateTask(UUID taskId, UUID userId, UpdateTaskRequest req) {
         Task t = requireTaskMember(taskId, userId);
+        guard.requirePermission(workspaceIdForTask(t), userId, "manageTasks");
+        boolean assigneeChanged = false;
+        UUID oldAssignee = t.getAssigneeId();
+
         if (req.title() != null && !req.title().isBlank()) t.setTitle(req.title().trim());
         if (req.description() != null) t.setDescription(blankToNull(req.description()));
-        if (req.assigneeId() != null) t.setAssigneeId(parseUser(req.assigneeId()));
+        if (req.assigneeId() != null) {
+            UUID newAssignee = parseUser(req.assigneeId());
+            if (newAssignee != null && !newAssignee.equals(oldAssignee)) {
+                assigneeChanged = true;
+            }
+            t.setAssigneeId(newAssignee);
+        }
         if (req.due() != null) t.setDueDate(parseDate(req.due()));
 
         if (req.type() != null) t.setType(req.type());
@@ -153,12 +187,27 @@ public class BoardService {
         BoardColumn col = columns.findById(t.getColumnId()).orElseThrow();
         Board board = boards.findById(col.getBoardId()).orElseThrow();
         broadcastBoardUpdate(board.getWorkspaceId());
+
+        User author = users.findById(userId).orElse(null);
+        String authorName = author != null ? author.getDisplayName() : "Someone";
+
+        if (assigneeChanged && t.getAssigneeId() != null && !t.getAssigneeId().equals(userId)) {
+            notifications.create(t.getAssigneeId(), board.getWorkspaceId(), "projects", "task_assignment",
+                    Map.of("title", authorName + " assigned you to a task: " + t.getTitle(),
+                            "linkType", "task", "linkId", t.getId().toString()));
+        }
+
+        if (req.description() != null) {
+            notifications.notifyMentions(t.getDescription(), board.getWorkspaceId(), userId, authorName, "projects", "task", t.getId().toString(), "{User.displayName} mentioned you in a task");
+        }
+
         return toResponse(t);
     }
 
     @Transactional
     public TaskResponse moveTask(UUID taskId, UUID userId, MoveTaskRequest req) {
         Task t = requireTaskMember(taskId, userId);
+        guard.requirePermission(workspaceIdForTask(t), userId, "manageTasks");
         UUID targetColumnId = UUID.fromString(req.columnId());
         requireColumnMember(targetColumnId, userId);
         
@@ -173,12 +222,22 @@ public class BoardService {
 
         Board board = boards.findById(targetColumn.getBoardId()).orElseThrow();
         broadcastBoardUpdate(board.getWorkspaceId());
+
+        if (!currentColumn.getId().equals(targetColumn.getId()) && t.getAssigneeId() != null && !t.getAssigneeId().equals(userId)) {
+            User author = users.findById(userId).orElse(null);
+            String authorName = author != null ? author.getDisplayName() : "Someone";
+            notifications.create(t.getAssigneeId(), board.getWorkspaceId(), "projects", "task_status",
+                    Map.of("title", authorName + " moved your task to " + targetColumn.getName(),
+                            "linkType", "task", "linkId", t.getId().toString()));
+        }
+
         return toResponse(t);
     }
 
     @Transactional
     public void deleteTask(UUID taskId, UUID userId) {
         Task t = requireTaskMember(taskId, userId);
+        guard.requirePermission(workspaceIdForTask(t), userId, "manageTasks");
         tasks.deleteById(taskId);
         BoardColumn col = columns.findById(t.getColumnId()).orElseThrow();
         Board board = boards.findById(col.getBoardId()).orElseThrow();
@@ -226,6 +285,12 @@ public class BoardService {
         return t;
     }
 
+    private UUID workspaceIdForTask(Task t) {
+        BoardColumn col = columns.findById(t.getColumnId()).orElseThrow(() -> ApiException.badRequest("Column not found"));
+        Board board = boards.findById(col.getBoardId()).orElseThrow(() -> ApiException.badRequest("Board not found"));
+        return board.getWorkspaceId();
+    }
+
     private UUID parseUser(String id) {
         if (id == null || id.isBlank()) return null;
         return UUID.fromString(id);
@@ -245,6 +310,18 @@ public class BoardService {
     }
 
     private void broadcastBoardUpdate(UUID workspaceId) {
-        broker.convertAndSend("/topic/workspace." + workspaceId + ".board", "{\"type\":\"BOARD_UPDATE\"}");
+        Runnable send = () -> broker.convertAndSend(
+                "/topic/workspace." + workspaceId + ".board",
+                "{\"type\":\"BOARD_UPDATE\"}");
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    send.run();
+                }
+            });
+        } else {
+            send.run();
+        }
     }
 }

@@ -17,6 +17,7 @@ import com.devcollab.common.error.ApiException;
 import com.devcollab.notification.NotificationService;
 import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
+import com.devcollab.workspace.WorkspaceGuard;
 
 @Service
 public class MessageService {
@@ -28,18 +29,21 @@ public class MessageService {
     private final UserRepository users;
     private final SimpMessagingTemplate broker;
     private final NotificationService notifications;
+    private final WorkspaceGuard guard;
 
     public MessageService(
             MessageRepository messages,
             ChannelService channels,
             UserRepository users,
             SimpMessagingTemplate broker,
-            NotificationService notifications) {
+            NotificationService notifications,
+            WorkspaceGuard guard) {
         this.messages = messages;
         this.channels = channels;
         this.users = users;
         this.broker = broker;
         this.notifications = notifications;
+        this.guard = guard;
     }
 
     @Transactional(readOnly = true)
@@ -56,6 +60,7 @@ public class MessageService {
     @Transactional
     public MessageResponse post(UUID channelId, UUID userId, String content) {
         Channel channel = channels.requireAccess(channelId, userId);
+        guard.requirePermission(channel.getWorkspaceId(), userId, "answerChannels");
         Message m = new Message();
         m.setChannelId(channelId);
         m.setUserId(userId);
@@ -65,6 +70,9 @@ public class MessageService {
         User author = users.findById(userId).orElseThrow(() -> ApiException.unauthorized("Not authenticated"));
         MessageResponse response = MessageResponse.of(m, author);
         broker.convertAndSend("/topic/channel." + channelId, response);
+        // Broadcast to workspace so all clients can refresh unread counts
+        broker.convertAndSend("/topic/workspace." + channel.getWorkspaceId() + ".chat",
+                "{\"type\":\"NEW_MESSAGE\",\"channelId\":\"" + channelId + "\"}");
 
         notify(channel, author, content);
         return response;
@@ -76,6 +84,8 @@ public class MessageService {
             for (UUID other : channels.otherParticipants(channel.getId(), author.getId())) {
                 notifications.create(other, ws, "chat", "dm",
                         Map.of("title", author.getDisplayName() + " messaged you",
+                                "linkType", "chat",
+                                "linkId", channel.getId().toString(),
                                 "channelId", channel.getId().toString()));
             }
             return;
@@ -84,6 +94,8 @@ public class MessageService {
             for (UUID other : channels.otherParticipants(channel.getId(), author.getId())) {
                 notifications.create(other, ws, "chat", "mention",
                         Map.of("title", author.getDisplayName() + " mentioned everyone in #" + channel.getName(),
+                                "linkType", "chat",
+                                "linkId", channel.getId().toString(),
                                 "channelId", channel.getId().toString()));
             }
         }
@@ -100,6 +112,8 @@ public class MessageService {
                 if (!u.getId().equals(author.getId()) && channels.isParticipant(channel.getId(), u.getId())) {
                     notifications.create(u.getId(), ws, "chat", "mention",
                             Map.of("title", author.getDisplayName() + " mentioned you in #" + channel.getName(),
+                                    "linkType", "chat",
+                                    "linkId", channel.getId().toString(),
                                     "channelId", channel.getId().toString()));
                 }
             });

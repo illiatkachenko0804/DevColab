@@ -14,6 +14,9 @@ export function NotificationCenter() {
   const setOpen = useOS((s) => s.setNotifOpen);
   const ws = useOS((s) => s.activeWorkspace);
   const openApp = useOS((s) => s.openApp);
+  const setPendingTask = useOS((s) => s.setPendingTask);
+  const setPendingSnippet = useOS((s) => s.setPendingSnippet);
+  const setPendingChat = useOS((s) => s.setPendingChat);
   const qc = useQueryClient();
 
   const query = useQuery({ queryKey: ["notifications", ws], queryFn: () => listNotifications(ws), enabled: !!ws });
@@ -58,13 +61,36 @@ export function NotificationCenter() {
             <div className="max-h-[60vh] overflow-y-auto p-2 no-scrollbar">
               {items.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted">You're all caught up.</p>}
               {items.map((n) => {
+                const isClickable = n.type !== "project_removed" && (n.linkType || n.app);
                 const meta = n.app ? appMeta(n.app as AppId) : null;
                 return (
                   <button
                     key={n.id}
                     type="button"
-                    onClick={() => { if (n.app) openApp(n.app as AppId); setOpen(false); }}
-                    className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-hover"
+                    onClick={() => {
+                      if (!isClickable) return;
+                      if (n.linkType === "task" && n.linkId) {
+                        setPendingTask(n.linkId);
+                        openApp("projects");
+                      } else if (n.linkType === "snippet" && n.linkId) {
+                        setPendingSnippet(n.linkId);
+                        openApp("snippets");
+                      } else if (n.linkType === "chat" && n.linkId) {
+                        setPendingChat(n.linkId);
+                        openApp("chat");
+                      } else if (n.linkType === "project" && n.linkId) {
+                        useOS.getState().setWorkspace(n.linkId);
+                        if (n.app) {
+                          openApp(n.app as AppId);
+                        }
+                      } else if (n.app) {
+                        openApp(n.app as AppId);
+                      }
+                      setOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors ${
+                      isClickable ? "cursor-pointer hover:bg-hover" : ""
+                    }`}
                   >
                     <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" style={{ background: meta?.accent ?? "var(--faint)" }}>
                       {meta ? <meta.icon className="h-4 w-4" /> : <Bell className="h-4 w-4" />}

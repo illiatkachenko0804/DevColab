@@ -4,14 +4,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.devcollab.common.error.ApiException;
 import com.devcollab.notification.NotificationService;
+import com.devcollab.chat.Channel;
+import com.devcollab.chat.ChannelParticipant;
+import com.devcollab.chat.ChannelParticipantRepository;
+import com.devcollab.chat.ChannelRepository;
 import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.dto.MemberResponse;
+import com.devcollab.activity.ActivityService;
 
 @Service
 public class MemberService {
@@ -21,15 +27,27 @@ public class MemberService {
     private final WorkspaceRepository workspaces;
     private final WorkspaceGuard guard;
     private final NotificationService notifications;
+    private final SimpMessagingTemplate broker;
+    private final WorkspaceService workspaceService;
+    private final ChannelRepository channels;
+    private final ChannelParticipantRepository channelParticipants;
+    private final ActivityService activities;
 
     public MemberService(
             MembershipRepository memberships, UserRepository users, WorkspaceRepository workspaces,
-            WorkspaceGuard guard, NotificationService notifications) {
+            WorkspaceGuard guard, NotificationService notifications, SimpMessagingTemplate broker,
+            WorkspaceService workspaceService, ChannelRepository channels, ChannelParticipantRepository channelParticipants,
+            ActivityService activities) {
         this.memberships = memberships;
         this.users = users;
         this.workspaces = workspaces;
         this.guard = guard;
         this.notifications = notifications;
+        this.broker = broker;
+        this.workspaceService = workspaceService;
+        this.channels = channels;
+        this.channelParticipants = channelParticipants;
+        this.activities = activities;
     }
 
     @Transactional(readOnly = true)
@@ -60,7 +78,7 @@ public class MemberService {
     /** Invite by @devtag or email — resolves to an existing user and adds them. */
     @Transactional
     public MemberResponse invite(UUID workspaceId, UUID requesterId, String query) {
-        guard.requireMember(workspaceId, requesterId);
+        guard.requirePermission(workspaceId, requesterId, "inviteMembers");
         User user = resolve(query);
         if (user == null) {
             throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND,
@@ -72,15 +90,86 @@ public class MemberService {
         Membership m = new Membership();
         m.setWorkspaceId(workspaceId);
         m.setUserId(user.getId());
-        m.setRole("MEMBER");
+        m.setRole(workspaceService.defaultRoleFor(workspaceId));
         memberships.save(m);
+
+        channels.findByWorkspaceIdAndName(workspaceId, "general").ifPresent(general -> {
+            ChannelParticipant p = new ChannelParticipant();
+            p.setChannelId(general.getId());
+            p.setUserId(user.getId());
+            channelParticipants.save(p);
+        });
 
         String wsName = workspaces.findById(workspaceId).map(Workspace::getName).orElse("a project");
         notifications.create(user.getId(), workspaceId, "members", "project_invite",
                 Map.of("title", "You were added to " + wsName));
+        broker.convertAndSend("/topic/workspace." + workspaceId + ".members",
+                Map.of("type", "MEMBER_ADDED", "userId", user.getId().toString()));
 
-        return MemberResponse.of(user, "MEMBER");
+        activities.log(workspaceId, user.getId(), "join", "joined", "joined the project", user.getId().toString());
+
+        return MemberResponse.of(user, m.getRole());
     }
+
+    @Transactional
+    public void remove(UUID workspaceId, UUID requesterId, UUID targetId) {
+        guard.requirePermission(workspaceId, requesterId, "removeMembers");
+        if (requesterId.equals(targetId)) {
+            throw ApiException.badRequest("You cannot remove yourself");
+        }
+        Workspace workspace = workspaces.findById(workspaceId)
+                .orElseThrow(() -> ApiException.badRequest("Project not found"));
+        if (workspace.getOwnerId().equals(targetId)) {
+            throw ApiException.forbidden("Project owner cannot be removed");
+        }
+        Membership membership = memberships.findByWorkspaceIdAndUserId(workspaceId, targetId)
+                .orElseThrow(() -> ApiException.badRequest("Member not found"));
+        if ("ADMIN".equalsIgnoreCase(membership.getRole())) {
+            throw ApiException.forbidden("Users with the Admin role cannot be removed");
+        }
+        memberships.delete(membership);
+        broker.convertAndSend("/topic/workspace." + workspaceId + ".members",
+                Map.of("type", "MEMBER_REMOVED", "userId", targetId.toString()));
+
+        User author = users.findById(requesterId).orElse(null);
+        String authorName = author != null ? author.getDisplayName() : "Someone";
+        notifications.create(targetId, workspaceId, "members", "project_removed",
+                Map.of("title", authorName + " removed you from " + workspace.getName(),
+                        "linkType", "project", "linkId", workspaceId.toString()));
+    }
+
+    @Transactional
+    public void updateRole(UUID workspaceId, UUID requesterId, UUID targetId, com.devcollab.workspace.dto.UpdateMemberRoleRequest req) {
+        guard.requirePermission(workspaceId, requesterId, "manageRoles");
+        Workspace workspace = workspaces.findById(workspaceId)
+                .orElseThrow(() -> ApiException.badRequest("Project not found"));
+        if (workspace.getOwnerId().equals(targetId)) {
+            throw ApiException.forbidden("Project owner role cannot be changed");
+        }
+
+        Membership membership = memberships.findByWorkspaceIdAndUserId(workspaceId, targetId)
+                .orElseThrow(() -> ApiException.badRequest("Member not found"));
+
+        if ("ADMIN".equalsIgnoreCase(membership.getRole()) && !"ADMIN".equalsIgnoreCase(req.role())) {
+            Membership requesterMembership = memberships.findByWorkspaceIdAndUserId(workspaceId, requesterId).orElse(null);
+            if (requesterMembership == null || !"ADMIN".equalsIgnoreCase(requesterMembership.getRole())) {
+                throw ApiException.forbidden("Only Admins can change another Admin's role");
+            }
+        }
+
+        membership.setRole(req.role());
+        memberships.save(membership);
+
+        broker.convertAndSend("/topic/workspace." + workspaceId + ".members",
+                Map.of("type", "MEMBER_UPDATED", "userId", targetId.toString()));
+
+        User author = users.findById(requesterId).orElse(null);
+        String authorName = author != null ? author.getDisplayName() : "Someone";
+        notifications.create(targetId, workspaceId, "members", "role_updated",
+                Map.of("title", authorName + " updated your role to " + req.role() + " in " + workspace.getName(),
+                        "linkType", "project", "linkId", workspaceId.toString()));
+    }
+
 
     private User resolve(String query) {
         String q = query.trim();

@@ -3,6 +3,7 @@ import { Folder, Hash, Search, Star, MessageSquare, Pin, Plus } from "lucide-rea
 import { Avatar } from "@/components/ui/avatar";
 import { cn, relativeTime } from "@/lib/utils";
 import { listSnippets, listSnippetCollections, listSnippetTags, Snippet } from "@/lib/snippets";
+import { usePermissions } from "@/lib/workspaces";
 
 interface SidebarProps {
   ws: string;
@@ -52,17 +53,22 @@ export function Sidebar({
   const cols = colsQuery.data ?? [];
   const tagsData = tagsQuery.data ?? [];
 
+  const permissions = usePermissions();
+  const canManageSnippets = permissions.manageSnippets === true;
+
   return (
     <div className="flex w-72 shrink-0 flex-col border-r border-separator bg-sidebar">
       {/* Header */}
       <div className="flex items-center justify-between p-3 pb-2">
         <span className="font-semibold px-2">Snippets</span>
-        <button 
-          onClick={onCreateClick}
-          className="p-1 rounded-md text-muted-foreground hover:bg-hover hover:text-foreground transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        {canManageSnippets && (
+          <button 
+            onClick={onCreateClick}
+            className="p-1 rounded-md text-muted-foreground hover:bg-hover hover:text-foreground transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Search Bar */}

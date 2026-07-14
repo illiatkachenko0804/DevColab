@@ -7,8 +7,9 @@ import { useMemo, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { updateTask as apiUpdateTask, type BoardTask } from "@/lib/board";
 import { getSprints, startSprint, completeSprint, type Sprint } from "@/lib/sprints";
-import { cn } from "@/lib/utils";
 import { SprintEditorModal } from "./sprint-editor-modal";
+import { usePermissions } from "@/lib/workspaces";
+import { cn } from "@/lib/utils";
 
 function TypeIcon({ type }: { type: BoardTask["type"] }) {
   switch (type) {
@@ -32,8 +33,8 @@ function PriorityIcon({ priority }: { priority: BoardTask["priority"] }) {
   }
 }
 
-function BacklogTaskRow({ task, onOpen }: { task: BoardTask; onOpen: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+function BacklogTaskRow({ task, onOpen, disabled }: { task: BoardTask; onOpen: () => void; disabled?: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled });
   
   return (
     <div 
@@ -67,7 +68,7 @@ function BacklogTaskRow({ task, onOpen }: { task: BoardTask; onOpen: () => void 
   );
 }
 
-function SprintSection({ sprint, tasks, onOpenTask, onStart, onComplete, onEditSprint, onCreateTask }: { sprint: Sprint | null; tasks: BoardTask[]; onOpenTask: (t: BoardTask) => void; onStart?: () => void; onComplete?: () => void; onEditSprint?: () => void; onCreateTask: () => void }) {
+function SprintSection({ sprint, tasks, onOpenTask, onStart, onComplete, onEditSprint, onCreateTask, canManageTasks, canManageSprints }: { sprint: Sprint | null; tasks: BoardTask[]; onOpenTask: (t: BoardTask) => void; onStart?: () => void; onComplete?: () => void; onEditSprint?: () => void; onCreateTask: () => void; canManageTasks?: boolean; canManageSprints?: boolean }) {
   const id = sprint ? sprint.id : "backlog";
   const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -76,8 +77,8 @@ function SprintSection({ sprint, tasks, onOpenTask, onStart, onComplete, onEditS
       <div className="flex items-center justify-between bg-sidebar px-4 py-3 border-b border-separator">
         <div className="flex items-center gap-3">
           <h3 
-            className={cn("text-sm font-semibold", sprint && "cursor-pointer hover:underline decoration-separator")} 
-            onClick={() => { if (sprint && onEditSprint) onEditSprint(); }}
+            className={cn("text-sm font-semibold", sprint && canManageSprints && "cursor-pointer hover:underline decoration-separator")} 
+            onClick={() => { if (sprint && onEditSprint && canManageSprints) onEditSprint(); }}
           >
             {sprint ? sprint.name : "Backlog"}
           </h3>
@@ -90,21 +91,23 @@ function SprintSection({ sprint, tasks, onOpenTask, onStart, onComplete, onEditS
               <Play className="h-3.5 w-3.5" /> Start Sprint
             </button>
           )}
-          {sprint && sprint.status === "ACTIVE" && (
+          {sprint && sprint.status === "ACTIVE" && canManageSprints && (
             <button onClick={onComplete} className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:brightness-110 transition">
               <Check className="h-3.5 w-3.5" /> Complete Sprint
             </button>
           )}
-          <button onClick={onCreateTask} className="flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-xs font-semibold border border-separator hover:border-accent hover:text-accent transition ml-2">
-            <Plus className="h-3.5 w-3.5" /> Create Issue
-          </button>
+          {canManageTasks && (
+            <button onClick={onCreateTask} className="flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-xs font-semibold border border-separator hover:border-accent hover:text-accent transition ml-2">
+              <Plus className="h-3.5 w-3.5" /> Create Issue
+            </button>
+          )}
         </div>
       </div>
       
       <div ref={setNodeRef} className={cn("min-h-[50px] transition-colors", isOver && "bg-accent/5")}>
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.length > 0 ? (
-            tasks.map(t => <BacklogTaskRow key={t.id} task={t} onOpen={() => onOpenTask(t)} />)
+            tasks.map(t => <BacklogTaskRow key={t.id} task={t} onOpen={() => onOpenTask(t)} disabled={!canManageTasks} />)
           ) : (
             <div className="flex items-center justify-center p-6 text-sm text-faint italic border-b border-separator/30">
               Drop issues here
@@ -120,6 +123,10 @@ export function BacklogView({ ws, allTasks, onOpenTask, onTaskChanged, onCreateT
   const qc = useQueryClient();
   const sprintsQuery = useQuery({ queryKey: ["sprints", ws], queryFn: () => getSprints(ws), enabled: !!ws });
   const sprints = sprintsQuery.data ?? [];
+  const permissions = usePermissions();
+  const canManageTasks = permissions.manageTasks === true;
+  const canManageSprints = permissions.manageSprints === true;
+
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editingSprint, setEditingSprint] = useState<{ isNew: boolean, sprint: Sprint | null } | null>(null);
@@ -192,12 +199,14 @@ export function BacklogView({ ws, allTasks, onOpenTask, onTaskChanged, onCreateT
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-5xl mx-auto w-full no-scrollbar">
       <div className="mb-6 flex justify-end">
-        <button 
-          onClick={() => setEditingSprint({ isNew: true, sprint: null })}
-          className="rounded-lg bg-surface px-4 py-2 text-sm font-semibold border border-separator hover:border-accent hover:text-accent transition shadow-sm"
-        >
-          Create Sprint
-        </button>
+        {canManageSprints && (
+          <button 
+            onClick={() => setEditingSprint({ isNew: true, sprint: null })}
+            className="rounded-lg bg-surface px-4 py-2 text-sm font-semibold border border-separator hover:border-accent hover:text-accent transition shadow-sm"
+          >
+            Create Sprint
+          </button>
+        )}
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         {sprints.filter(s => s.status !== "COMPLETED").map(sprint => (
@@ -210,6 +219,9 @@ export function BacklogView({ ws, allTasks, onOpenTask, onTaskChanged, onCreateT
             onComplete={() => completeSprintMut.mutate(sprint.id)}
             onEditSprint={() => setEditingSprint({ isNew: false, sprint })}
             onCreateTask={() => onCreateTaskInSprint(sprint.id)}
+            canManageTasks={canManageTasks}
+            canManageSprints={canManageSprints}
+
           />
         ))}
 
@@ -219,6 +231,9 @@ export function BacklogView({ ws, allTasks, onOpenTask, onTaskChanged, onCreateT
             tasks={tasksBySprint.get(null) || []} 
             onOpenTask={onOpenTask} 
             onCreateTask={() => onCreateTaskInSprint("")}
+            canManageTasks={canManageTasks}
+            canManageSprints={canManageSprints}
+
           />
         </div>
 

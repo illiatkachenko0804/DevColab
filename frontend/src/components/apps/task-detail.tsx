@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { X, CalendarClock, MessageSquare, Trash2, CheckSquare, Bug, Bookmark, Zap, ArrowUp, ArrowRight, ArrowDown, AlertCircle, Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, Link as LinkIcon, Eraser } from "lucide-react";
-import { useState, useEffect } from "react";
+import { X, Trash2, CheckSquare, Bug, Bookmark, Zap, ArrowUp, ArrowRight, ArrowDown, AlertCircle, Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, Link as LinkIcon, Eraser, Copy } from "lucide-react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -23,10 +23,21 @@ import { getComments, createComment, deleteComment } from "@/lib/comments";
 import { attachLabelToTask, detachLabelFromTask } from "@/lib/labels";
 import { listMembers } from "@/lib/members";
 import { LabelPicker } from "./label-picker";
-import { Copy } from "lucide-react";
-import { useMemo } from "react";
 import { useOS } from "@/stores/os";
 import { subscribe } from "@/lib/ws";
+import { usePermissions } from "@/lib/workspaces";
+
+function ToolbarButton({ onClick, isActive, children }: { onClick: () => void; isActive: boolean; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn("p-1.5 rounded transition", isActive ? "bg-accent/20 text-accent" : "text-muted hover:text-foreground hover:bg-hover")}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function TypeIcon({ type, className }: { type: BoardTask["type"]; className?: string }) {
   switch (type) {
@@ -103,16 +114,6 @@ function RichTextEditor({
     ? members.filter((m) => m.displayName.toLowerCase().includes(mentionQuery.toLowerCase()) || m.devTag.toLowerCase().includes(mentionQuery.toLowerCase())) 
     : [];
 
-  const ToolbarButton = ({ onClick, isActive, children }: { onClick: () => void, isActive: boolean, children: React.ReactNode }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn("p-1.5 rounded transition", isActive ? "bg-accent/20 text-accent" : "text-muted hover:text-foreground hover:bg-hover")}
-    >
-      {children}
-    </button>
-  );
-
   return (
     <div className="flex flex-col rounded-xl border border-separator focus-within:border-accent bg-surface shadow-sm overflow-visible min-h-0 relative transition">
       <div className="flex items-center gap-1 border-b border-separator/50 p-1 bg-sidebar/50 flex-wrap shrink-0">
@@ -182,7 +183,7 @@ function RichTextEditor({
       <div className="flex items-center justify-end gap-2 p-2 border-t border-separator/50 bg-surface">
         {onCancel && <button onClick={onCancel} className="px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground">Cancel</button>}
         <button onClick={() => {
-          const md = (editor.storage as any).markdown.getMarkdown();
+          const md = (editor.storage as unknown as { markdown: { getMarkdown: () => string } }).markdown.getMarkdown();
           onSave(md);
           if (!onCancel) editor.commands.setContent(""); // Reset if it's a persistent input
         }} className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition hover:brightness-110">Save</button>
@@ -191,18 +192,36 @@ function RichTextEditor({
   );
 }
 
-export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task: BoardTask; onClose: () => void; onChanged: () => void }) {
+export function TaskDetail({
+  ws,
+  task,
+  onOpenTask,
+  onClose,
+  onChanged,
+}: {
+  ws: string;
+  task: BoardTask;
+  onOpenTask: (task: BoardTask) => void;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
   const qc = useQueryClient();
+  const me = useOS((s) => s.user);
   const boardQuery = useQuery({ queryKey: ["board", ws], queryFn: () => getBoard(ws), enabled: !!ws });
   
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
+  
+  const permissions = usePermissions();
+  const canManageTasks = permissions.manageTasks === true;
+
+  const canComment = permissions.comment === true;
+
   const [assigneeId, setAssigneeId] = useState(task.assignee?.id ?? "");
   const [priority, setPriority] = useState(task.priority);
   const [type, setType] = useState(task.type);
   const [due, setDue] = useState(task.due ?? "");
-  const [newComment, setNewComment] = useState("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [isCopied, setIsCopied] = useState(false);
 
@@ -248,15 +267,6 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
     onSuccess: () => { onChanged(); onClose(); },
   });
 
-  const addComment = useMutation({
-    mutationFn: () => createComment(task.id, newComment.trim()),
-    onSuccess: () => {
-      setNewComment("");
-      qc.invalidateQueries({ queryKey: ["comments", task.id] });
-      onChanged();
-    }
-  });
-
   const removeComment = useMutation({
     mutationFn: (id: string) => deleteComment(id),
     onSuccess: () => {
@@ -285,10 +295,18 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
     }
   });
 
-  const subtasks = useMemo(() => {
+  const boardTasks = useMemo(() => {
     if (!boardQuery.data) return [];
-    return boardQuery.data.columns.flatMap((c: BoardColumn) => c.tasks).filter((t: BoardTask) => t.parentId === task.id);
-  }, [boardQuery.data, task.id]);
+    return boardQuery.data.columns.flatMap((c: BoardColumn) => c.tasks);
+  }, [boardQuery.data]);
+
+  const parentTask = useMemo(() => (
+    task.parentId ? boardTasks.find((t: BoardTask) => t.id === task.parentId) ?? null : null
+  ), [boardTasks, task.parentId]);
+
+  const subtasks = useMemo(() => (
+    boardTasks.filter((t: BoardTask) => t.parentId === task.id)
+  ), [boardTasks, task.id]);
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 p-4 sm:p-6 backdrop-blur-sm" onClick={onClose}>
@@ -377,27 +395,50 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
               )}
             </div>
 
+            {parentTask && (
+              <div className="mb-8">
+                <h3 className="mb-4 text-sm font-medium text-foreground">Parent task</h3>
+                <button
+                  type="button"
+                  onClick={() => onOpenTask(parentTask)}
+                  className="flex w-full items-center gap-3 rounded-xl border border-separator bg-surface p-2.5 text-left transition hover:border-accent hover:bg-hover"
+                >
+                  <TypeIcon type={parentTask.type} className="h-3.5 w-3.5" />
+                  <span className="w-16 text-xs font-semibold text-muted">{parentTask.taskKey}</span>
+                  <span className="flex-1 truncate text-sm font-medium text-foreground">{parentTask.title}</span>
+                  {parentTask.assignee && <Avatar name={parentTask.assignee.displayName} url={parentTask.assignee.avatarUrl} size={20} />}
+                </button>
+              </div>
+            )}
+
             <div className="mb-8">
               <h3 className="mb-4 text-sm font-medium text-foreground">Subtasks</h3>
               <div className="flex flex-col gap-2 mb-3">
                 {subtasks.map((st: BoardTask) => (
-                  <div key={st.id} className="flex items-center gap-3 rounded-xl border border-separator bg-surface p-2.5 transition hover:border-accent">
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => onOpenTask(st)}
+                    className="flex items-center gap-3 rounded-xl border border-separator bg-surface p-2.5 text-left transition hover:border-accent hover:bg-hover"
+                  >
                     <TypeIcon type={st.type} className="h-3.5 w-3.5" />
                     <span className="w-16 text-xs font-semibold text-muted">{st.taskKey}</span>
                     <span className="flex-1 truncate text-sm font-medium text-foreground">{st.title}</span>
                     {st.assignee && <Avatar name={st.assignee.displayName} url={st.assignee.avatarUrl} size={20} />}
-                  </div>
+                  </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
-                <input 
-                  value={newSubtaskTitle}
-                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && newSubtaskTitle.trim()) createSubtask.mutate(); }}
-                  placeholder="Create subtask..."
-                  className="flex-1 rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm outline-none transition focus:border-accent"
-                />
-              </div>
+              {canManageTasks && (
+                <div className="flex items-center gap-2">
+                  <input 
+                    value={newSubtaskTitle}
+                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && newSubtaskTitle.trim()) createSubtask.mutate(); }}
+                    placeholder="Create subtask..."
+                    className="flex-1 rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm outline-none transition focus:border-accent"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="mb-6">
@@ -406,22 +447,26 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
               <div className="flex gap-3 mb-8">
                 <Avatar name="Me" size={32} />
                 <div className="flex-1">
-                  <RichTextEditor
-                    initialValue=""
-                    placeholder="Add a comment..."
-                    minHeight="60px"
-                    onSave={(val) => {
-                      if (val.trim()) {
-                        setNewComment(val);
-                        // We need to pass the value directly to mutation since state update is async
-                        createComment(task.id, val.trim()).then(() => {
-                          qc.invalidateQueries({ queryKey: ["comments", task.id] });
-                          onChanged();
-                        });
-                      }
-                    }}
-                    members={membersQuery.data}
-                  />
+                  {canComment ? (
+                    <RichTextEditor
+                      initialValue=""
+                      placeholder="Add a comment..."
+                      minHeight="60px"
+                      onSave={(val) => {
+                        if (val.trim()) {
+                          createComment(task.id, val.trim()).then(() => {
+                            qc.invalidateQueries({ queryKey: ["comments", task.id] });
+                            onChanged();
+                          });
+                        }
+                      }}
+                      members={membersQuery.data}
+                    />
+                  ) : (
+                    <div className="rounded-xl border border-separator bg-surface/50 p-3 text-sm text-muted italic">
+                      You do not have permission to comment.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -470,7 +515,9 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
                             {contentToRender}
                           </ReactMarkdown>
                         </div>
-                        <button onClick={() => removeComment.mutate(c.id)} className="mt-2 text-[11px] font-medium text-faint hover:text-danger">Delete</button>
+                        {c.author?.id === me?.id && (
+                          <button onClick={() => removeComment.mutate(c.id)} className="mt-2 text-[11px] font-medium text-faint hover:text-danger">Delete</button>
+                        )}
                       </div>
                     </div>
                   );
@@ -493,7 +540,7 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
                     </span>
                   ))}
                 </div>
-                <LabelPicker ws={ws} selectedLabelIds={task.labels.map(l => l.id)} onToggleLabel={(id) => toggleLabel.mutate(id)} />
+                {canManageTasks && <LabelPicker ws={ws} selectedLabelIds={task.labels.map(l => l.id)} onToggleLabel={(id) => toggleLabel.mutate(id)} />}
               </div>
 
               <div>
@@ -506,7 +553,7 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
 
               <div>
                 <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Type</label>
-                <select value={type} onChange={(e) => { setType(e.target.value as any); setTimeout(() => save.mutate(), 0); }} className="w-full cursor-pointer rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm font-medium outline-none hover:border-accent">
+                <select value={type} onChange={(e) => { setType(e.target.value as BoardTask["type"]); setTimeout(() => save.mutate(), 0); }} className="w-full cursor-pointer rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm font-medium outline-none hover:border-accent">
                   <option value="TASK">Task</option>
                   <option value="BUG">Bug</option>
                   <option value="STORY">Story</option>
@@ -516,7 +563,7 @@ export function TaskDetail({ ws, task, onClose, onChanged }: { ws: string; task:
 
               <div>
                 <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Priority</label>
-                <select value={priority} onChange={(e) => { setPriority(e.target.value as any); setTimeout(() => save.mutate(), 0); }} className="w-full cursor-pointer rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm font-medium outline-none hover:border-accent">
+                <select value={priority} onChange={(e) => { setPriority(e.target.value as BoardTask["priority"]); setTimeout(() => save.mutate(), 0); }} className="w-full cursor-pointer rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm font-medium outline-none hover:border-accent">
                   <option value="URGENT">Urgent</option>
                   <option value="HIGH">High</option>
                   <option value="MEDIUM">Medium</option>

@@ -45,6 +45,7 @@ export function logout(): Promise<void> {
 export function updateProfile(body: {
   displayName?: string;
   devTag?: string;
+  avatarUrl?: string | null;
 }): Promise<AuthUser> {
   return api("/api/profile", { method: "PATCH", body: JSON.stringify(body) });
 }

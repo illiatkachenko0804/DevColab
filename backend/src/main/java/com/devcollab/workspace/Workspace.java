@@ -34,6 +34,32 @@ public class Workspace {
 
     private String description;
 
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
+    private String color;
+
+    @Column(name = "task_key_prefix")
+    private String taskKeyPrefix;
+
+    @Column(name = "default_task_type", nullable = false)
+    private String defaultTaskType = "TASK";
+
+    @Column(name = "default_task_priority", nullable = false)
+    private String defaultTaskPriority = "MEDIUM";
+
+    @Column(name = "default_sprint_days", nullable = false)
+    private Integer defaultSprintDays = 14;
+
+    @Column(name = "invite_policy", nullable = false)
+    private String invitePolicy = "ADMINS";
+
+    @Column(name = "default_role", nullable = false)
+    private String defaultRole = "VIEWER";
+
+    @Column(name = "archived_at")
+    private Instant archivedAt;
+
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 

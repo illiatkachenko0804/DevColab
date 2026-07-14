@@ -12,6 +12,12 @@ import com.devcollab.board.dto.SprintResponse;
 import com.devcollab.board.dto.UpdateSprintRequest;
 import com.devcollab.common.error.ApiException;
 import com.devcollab.workspace.WorkspaceGuard;
+import com.devcollab.notification.NotificationService;
+import com.devcollab.user.User;
+import com.devcollab.user.UserRepository;
+import com.devcollab.workspace.MembershipRepository;
+import java.util.Map;
+import com.devcollab.activity.ActivityService;
 
 @Service
 public class SprintService {
@@ -19,11 +25,21 @@ public class SprintService {
     private final SprintRepository sprints;
     private final WorkspaceGuard guard;
     private final SimpMessagingTemplate broker;
+    private final NotificationService notifications;
+    private final UserRepository users;
+    private final MembershipRepository memberships;
+    private final ActivityService activities;
 
-    public SprintService(SprintRepository sprints, WorkspaceGuard guard, SimpMessagingTemplate broker) {
+    public SprintService(SprintRepository sprints, WorkspaceGuard guard, SimpMessagingTemplate broker,
+                         NotificationService notifications, UserRepository users, MembershipRepository memberships,
+                         ActivityService activities) {
         this.sprints = sprints;
         this.guard = guard;
         this.broker = broker;
+        this.notifications = notifications;
+        this.users = users;
+        this.memberships = memberships;
+        this.activities = activities;
     }
 
     private SprintResponse toResponse(Sprint s) {
@@ -33,14 +49,14 @@ public class SprintService {
 
     @Transactional(readOnly = true)
     public List<SprintResponse> listSprints(UUID workspaceId, UUID userId) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "viewApps");
         return sprints.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId).stream()
                 .map(this::toResponse).toList();
     }
 
     @Transactional
     public SprintResponse createSprint(UUID workspaceId, UUID userId, CreateSprintRequest req) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "manageSprints");
         Sprint s = new Sprint();
         s.setWorkspaceId(workspaceId);
         s.setName(req.name());
@@ -56,7 +72,7 @@ public class SprintService {
     public SprintResponse updateSprint(UUID sprintId, UUID userId, UpdateSprintRequest req) {
         Sprint s = sprints.findById(sprintId)
                 .orElseThrow(() -> ApiException.badRequest("Sprint not found"));
-        guard.requireMember(s.getWorkspaceId(), userId);
+        guard.requirePermission(s.getWorkspaceId(), userId, "manageSprints");
         if (req.name() != null) s.setName(req.name());
         if (req.goal() != null) s.setGoal(req.goal());
         if (req.status() != null) s.setStatus(req.status());
@@ -71,7 +87,7 @@ public class SprintService {
     public void deleteSprint(UUID sprintId, UUID userId) {
         Sprint s = sprints.findById(sprintId)
                 .orElseThrow(() -> ApiException.badRequest("Sprint not found"));
-        guard.requireMember(s.getWorkspaceId(), userId);
+        guard.requirePermission(s.getWorkspaceId(), userId, "manageSprints");
         sprints.delete(s);
         broadcastSprintsUpdate(s.getWorkspaceId());
     }
@@ -80,10 +96,24 @@ public class SprintService {
     public SprintResponse startSprint(UUID sprintId, UUID userId) {
         Sprint s = sprints.findById(sprintId)
                 .orElseThrow(() -> ApiException.badRequest("Sprint not found"));
-        guard.requireMember(s.getWorkspaceId(), userId);
+        guard.requirePermission(s.getWorkspaceId(), userId, "manageSprints");
         s.setStatus("ACTIVE");
         sprints.save(s);
         broadcastSprintsUpdate(s.getWorkspaceId());
+
+        User author = users.findById(userId).orElse(null);
+        String authorName = author != null ? author.getDisplayName() : "Someone";
+        
+        memberships.findByWorkspaceIdOrderByJoinedAtAsc(s.getWorkspaceId()).forEach(m -> {
+            if (!m.getUserId().equals(userId)) {
+                notifications.create(m.getUserId(), s.getWorkspaceId(), "projects", "sprint_started",
+                        Map.of("title", authorName + " started sprint: " + s.getName(),
+                                "linkType", "project", "linkId", s.getWorkspaceId().toString()));
+            }
+        });
+
+        activities.log(s.getWorkspaceId(), userId, "board", "started", "started sprint \"" + s.getName() + "\"", s.getId().toString());
+
         return toResponse(s);
     }
 
@@ -91,7 +121,7 @@ public class SprintService {
     public SprintResponse completeSprint(UUID sprintId, UUID userId) {
         Sprint s = sprints.findById(sprintId)
                 .orElseThrow(() -> ApiException.badRequest("Sprint not found"));
-        guard.requireMember(s.getWorkspaceId(), userId);
+        guard.requirePermission(s.getWorkspaceId(), userId, "manageSprints");
         s.setStatus("COMPLETED");
         sprints.save(s);
         broadcastSprintsUpdate(s.getWorkspaceId());

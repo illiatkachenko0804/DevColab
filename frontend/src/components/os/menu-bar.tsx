@@ -10,6 +10,7 @@ import { logout as apiLogout } from "@/lib/auth";
 import { listNotifications } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 import { focusedApp, useOS } from "@/stores/os";
+import { url } from "inspector";
 
 function useClock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -44,6 +45,7 @@ export function MenuBar() {
 
   const displayName = user?.displayName ?? "Account";
   const handle = user?.devTag ? `@${user.devTag}` : (user?.email ?? "");
+  const profileUrl = user?.avatarUrl ?? "";
 
   const [projOpen, setProjOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
@@ -150,12 +152,12 @@ export function MenuBar() {
             aria-label="Account menu"
             className="ml-1 flex cursor-pointer items-center rounded-full transition hover:opacity-90"
           >
-            <Avatar name={displayName} size={20} />
+            <Avatar url={profileUrl} name={displayName} size={20} />
           </button>
           {acctOpen && (
             <div className="glass-strong absolute right-0 top-7 w-56 overflow-hidden rounded-xl border border-separator p-1 shadow-[var(--shadow-pop)]">
               <div className="flex items-center gap-2.5 px-2 py-2">
-                <Avatar name={displayName} size={34} />
+                <Avatar url={profileUrl} name={displayName} size={34} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{displayName}</p>
                   <p className="truncate text-xs text-muted">{handle}</p>

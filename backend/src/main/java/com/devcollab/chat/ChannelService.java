@@ -56,7 +56,7 @@ public class ChannelService {
 
     @Transactional(readOnly = true)
     public List<ChannelResponse> list(UUID workspaceId, UUID userId) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "viewApps");
         List<ChannelResponse> texts = new ArrayList<>();
         List<ChannelResponse> dms = new ArrayList<>();
         for (ChannelParticipant p : participants.findByUserId(userId)) {
@@ -156,6 +156,9 @@ public class ChannelService {
     @Transactional
     public ChannelMemberResponse addMember(UUID channelId, UUID requesterId, UUID targetId) {
         Channel c = requireAccess(channelId, requesterId);
+        if (!requesterId.equals(c.getAdminId())) {
+            throw ApiException.forbidden("Only channel admins can add members");
+        }
         if ("DM".equals(c.getType())) throw ApiException.badRequest("You can't add people to a direct message");
         guard.requireMember(c.getWorkspaceId(), targetId);
         User u = users.findById(targetId).orElseThrow(() -> ApiException.badRequest("User not found"));

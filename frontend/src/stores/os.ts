@@ -20,7 +20,6 @@ const DEFAULT_SIZE: Record<AppId, { w: number; h: number }> = {
   chat: { w: 880, h: 600 },
   projects: { w: 920, h: 600 },
   snippets: { w: 840, h: 560 },
-  activity: { w: 700, h: 560 },
   members: { w: 760, h: 540 },
   files: { w: 820, h: 600 },
   settings: { w: 720, h: 520 },
@@ -47,6 +46,7 @@ interface OSState {
 
   setOnline: (ids: string[]) => void;
   setSession: (user: AuthUser) => void;
+  updateUser: (user: AuthUser) => void;
   logout: () => void;
   setWorkspaces: (workspaces: Workspace[]) => void;
   addWorkspace: (workspace: Workspace) => void;
@@ -104,6 +104,7 @@ export const useOS = create<OSState>((set) => ({
 
   // Land on the desktop (no windows) — the user picks an app from the dock.
   setSession: (user) => set({ loggedIn: true, user, windows: [], zTop: 1 }),
+  updateUser: (user) => set({ user }),
   logout: () =>
     set({
       loggedIn: false,

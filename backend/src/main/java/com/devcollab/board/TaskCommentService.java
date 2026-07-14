@@ -11,9 +11,12 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import com.devcollab.board.dto.CommentResponse;
 import com.devcollab.board.dto.CreateCommentRequest;
 import com.devcollab.common.error.ApiException;
+import com.devcollab.notification.NotificationService;
 import com.devcollab.user.User;
+import java.util.Map;
 import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.WorkspaceGuard;
+import com.devcollab.activity.ActivityService;
 
 @Service
 public class TaskCommentService {
@@ -25,10 +28,13 @@ public class TaskCommentService {
     private final UserRepository users;
     private final WorkspaceGuard guard;
     private final SimpMessagingTemplate broker;
+    private final NotificationService notifications;
+    private final ActivityService activities;
 
     public TaskCommentService(TaskCommentRepository comments, TaskRepository tasks,
                               BoardColumnRepository columns, BoardRepository boards,
-                              UserRepository users, WorkspaceGuard guard, SimpMessagingTemplate broker) {
+                              UserRepository users, WorkspaceGuard guard, SimpMessagingTemplate broker,
+                              NotificationService notifications, ActivityService activities) {
         this.comments = comments;
         this.tasks = tasks;
         this.columns = columns;
@@ -36,6 +42,8 @@ public class TaskCommentService {
         this.users = users;
         this.guard = guard;
         this.broker = broker;
+        this.notifications = notifications;
+        this.activities = activities;
     }
 
     private UUID requireTaskAccess(UUID taskId, UUID userId) {
@@ -59,13 +67,34 @@ public class TaskCommentService {
     @Transactional
     public CommentResponse createComment(UUID taskId, UUID userId, CreateCommentRequest req) {
         UUID wsId = requireTaskAccess(taskId, userId);
+        guard.requirePermission(wsId, userId, "comment");
         TaskComment c = new TaskComment();
         c.setTaskId(taskId);
         c.setUserId(userId);
         c.setContent(req.content());
         comments.save(c);
         broadcastCommentUpdate(wsId, taskId);
-        return CommentResponse.of(c, users.findById(userId).orElse(null));
+
+        User author = users.findById(userId).orElse(null);
+        String authorName = author != null ? author.getDisplayName() : "Someone";
+        Task t = tasks.findById(taskId).orElse(null);
+
+        if (t != null) {
+            if (t.getAssigneeId() != null && !t.getAssigneeId().equals(userId)) {
+                notifications.create(t.getAssigneeId(), wsId, "projects", "task_comment",
+                        Map.of("title", authorName + " commented on your task", "linkType", "task", "linkId", taskId.toString()));
+            }
+            if (t.getCreatedBy() != null && !t.getCreatedBy().equals(userId) && !t.getCreatedBy().equals(t.getAssigneeId())) {
+                notifications.create(t.getCreatedBy(), wsId, "projects", "task_comment",
+                        Map.of("title", authorName + " commented on a task you created", "linkType", "task", "linkId", taskId.toString()));
+            }
+        }
+
+        notifications.notifyMentions(req.content(), wsId, userId, authorName, "projects", "task", taskId.toString(), "{User.displayName} mentioned you in a task comment");
+
+        activities.log(wsId, userId, "message", "commented", "commented on task \"" + (t != null ? t.getTitle() : "Task") + "\"", taskId.toString());
+
+        return CommentResponse.of(c, author);
     }
 
     @Transactional
@@ -76,6 +105,7 @@ public class TaskCommentService {
             throw ApiException.badRequest("You can only delete your own comments");
         }
         UUID wsId = requireTaskAccess(c.getTaskId(), userId);
+        guard.requirePermission(wsId, userId, "comment");
         comments.delete(c);
         broadcastCommentUpdate(wsId, c.getTaskId());
     }
@@ -88,6 +118,7 @@ public class TaskCommentService {
             throw ApiException.badRequest("You can only edit your own comments");
         }
         UUID wsId = requireTaskAccess(c.getTaskId(), userId);
+        guard.requirePermission(wsId, userId, "comment");
         if (req.content() != null && !req.content().isBlank()) {
             c.setContent(req.content());
             c.setEditedAt(Instant.now());

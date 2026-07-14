@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.devcollab.common.error.ApiException;
+import com.devcollab.notification.NotificationService;
 import com.devcollab.snippet.dto.CreateSnippetRequest;
 import com.devcollab.snippet.dto.SnippetCommentResponse;
 import com.devcollab.snippet.dto.SnippetDetailResponse;
@@ -19,6 +20,9 @@ import com.devcollab.snippet.dto.UpdateSnippetRequest;
 import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.WorkspaceGuard;
+import com.devcollab.notification.NotificationService;
+import com.devcollab.activity.ActivityService;
+import java.util.Map;
 
 @Service
 public class SnippetService {
@@ -32,12 +36,15 @@ public class SnippetService {
     private final UserRepository users;
     private final WorkspaceGuard guard;
     private final SimpMessagingTemplate broker;
+    private final NotificationService notifications;
+    private final ActivityService activities;
 
     public SnippetService(
             SnippetRepository snippets, SnippetCommentRepository comments,
             SnippetCollectionRepository collections, SnippetStarRepository stars,
             SnippetTagService tagService, SnippetRevisionService revisionService,
-            UserRepository users, WorkspaceGuard guard, SimpMessagingTemplate broker) {
+            UserRepository users, WorkspaceGuard guard, SimpMessagingTemplate broker,
+            NotificationService notifications, ActivityService activities) {
         this.snippets = snippets;
         this.comments = comments;
         this.collections = collections;
@@ -47,11 +54,13 @@ public class SnippetService {
         this.users = users;
         this.guard = guard;
         this.broker = broker;
+        this.notifications = notifications;
+        this.activities = activities;
     }
 
     @Transactional(readOnly = true)
     public List<SnippetResponse> list(UUID workspaceId, UUID userId, String collectionId, String tag, String search, Boolean starred, Boolean mine) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "viewApps");
         
         List<Snippet> list = snippets.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId);
 
@@ -90,7 +99,7 @@ public class SnippetService {
 
     @Transactional
     public SnippetResponse create(UUID workspaceId, UUID userId, CreateSnippetRequest req) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "manageSnippets");
         Snippet s = new Snippet();
         s.setWorkspaceId(workspaceId);
         s.setUserId(userId);
@@ -116,6 +125,8 @@ public class SnippetService {
 
         revisionService.createRevision(s.getId(), s.getCode(), s.getLanguage(), "Initial commit", userId);
 
+        activities.log(workspaceId, userId, "snippet", "created", "added a new snippet \"" + s.getTitle() + "\"", s.getId().toString());
+
         notifySnippets(workspaceId);
         return mapToResponse(s, userId);
     }
@@ -123,6 +134,7 @@ public class SnippetService {
     @Transactional
     public SnippetResponse update(UUID snippetId, UUID userId, UpdateSnippetRequest req) {
         Snippet s = requireAccess(snippetId, userId);
+        guard.requirePermission(s.getWorkspaceId(), userId, "manageSnippets");
         if (!s.getUserId().equals(userId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only the author can update this snippet");
         }
@@ -156,37 +168,9 @@ public class SnippetService {
 
         s = snippets.save(s);
 
-        if (codeChanged || (req.revisionMessage() != null && !req.revisionMessage().isEmpty())) {
-            revisionService.createRevision(s.getId(), s.getCode(), s.getLanguage(), req.revisionMessage(), userId);
+        if (codeChanged) {
+            revisionService.createRevision(s.getId(), s.getCode(), s.getLanguage(), "Updated snippet", userId);
         }
-
-        notifySnippets(s.getWorkspaceId());
-        return mapToResponse(s, userId);
-    }
-
-    @Transactional
-    public SnippetResponse fork(UUID snippetId, UUID userId) {
-        Snippet original = requireAccess(snippetId, userId);
-        
-        Snippet s = new Snippet();
-        s.setWorkspaceId(original.getWorkspaceId());
-        s.setUserId(userId);
-        s.setTitle(original.getTitle() + " (Fork)");
-        s.setLanguage(original.getLanguage());
-        s.setCode(original.getCode());
-        s.setDescription(original.getDescription());
-        s.setVisibility("WORKSPACE");
-        s.setForkedFrom(original.getId());
-        s.setCollectionId(original.getCollectionId());
-        
-        s = snippets.save(s);
-        
-        for (SnippetTag t : original.getTags()) {
-            s.getTags().add(t);
-        }
-        snippets.save(s);
-
-        revisionService.createRevision(s.getId(), s.getCode(), s.getLanguage(), "Forked from " + original.getTitle(), userId);
 
         notifySnippets(s.getWorkspaceId());
         return mapToResponse(s, userId);
@@ -195,6 +179,7 @@ public class SnippetService {
     @Transactional(readOnly = true)
     public SnippetDetailResponse get(UUID snippetId, UUID userId) {
         Snippet s = requireAccess(snippetId, userId);
+        guard.requirePermission(s.getWorkspaceId(), userId, "viewApps");
         List<SnippetCommentResponse> cs = comments.findBySnippetIdOrderByCreatedAtAsc(snippetId).stream()
                 .map(c -> SnippetCommentResponse.of(c, author(c.getUserId())))
                 .toList();
@@ -204,6 +189,7 @@ public class SnippetService {
     @Transactional
     public void delete(UUID snippetId, UUID userId) {
         Snippet s = requireAccess(snippetId, userId);
+        guard.requirePermission(s.getWorkspaceId(), userId, "manageSnippets");
         if (!s.getUserId().equals(userId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only the author can delete this snippet");
         }
@@ -216,13 +202,27 @@ public class SnippetService {
     @Transactional
     public SnippetCommentResponse addComment(UUID snippetId, UUID userId, String content) {
         Snippet s = requireAccess(snippetId, userId);
+        guard.requirePermission(s.getWorkspaceId(), userId, "comment");
         SnippetComment c = new SnippetComment();
         c.setSnippetId(snippetId);
         c.setUserId(userId);
         c.setContent(content.trim());
         comments.save(c);
         notifySnippets(s.getWorkspaceId());
-        return SnippetCommentResponse.of(c, author(userId));
+
+        User author = users.findById(userId).orElse(null);
+        String authorName = author != null ? author.getDisplayName() : "Someone";
+
+        if (!s.getUserId().equals(userId)) {
+            notifications.create(s.getUserId(), s.getWorkspaceId(), "snippets", "snippet_comment",
+                    Map.of("title", authorName + " commented on your snippet", "linkType", "snippet", "linkId", snippetId.toString()));
+        }
+
+        notifications.notifyMentions(content, s.getWorkspaceId(), userId, authorName, "snippets", "snippet", snippetId.toString(), "{User.displayName} mentioned you in a snippet comment");
+
+        activities.log(s.getWorkspaceId(), userId, "message", "commented", "commented on snippet \"" + s.getTitle() + "\"", snippetId.toString());
+
+        return SnippetCommentResponse.of(c, author);
     }
 
     private Snippet requireAccess(UUID snippetId, UUID userId) {

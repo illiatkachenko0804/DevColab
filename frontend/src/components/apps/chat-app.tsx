@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import type { AppId } from "@/lib/apps";
 import { relativeTime } from "@/lib/utils";
 import { publish, subscribe } from "@/lib/ws";
+import { usePermissions } from "@/lib/workspaces";
 import { useOS } from "@/stores/os";
 
 export function ChatApp() {
@@ -65,6 +66,10 @@ export function ChatApp() {
 
   const pendingChat = useOS((s) => s.pendingChat);
   const setPendingChat = useOS((s) => s.setPendingChat);
+
+  const permissions = usePermissions();
+
+  const canAnswerChannels = permissions.answerChannels === true;
 
   useEffect(() => {
     if (channels.length === 0) {
@@ -278,9 +283,11 @@ export function ChatApp() {
                   <button type="button" onClick={() => { setShowParticipants((v) => !v); setAddPeople(false); setEditChannel(false); }} aria-label="Participants" className={cn("flex cursor-pointer items-center gap-1.5 rounded-lg border border-separator px-2.5 py-1 text-xs transition hover:bg-hover hover:text-foreground", showParticipants ? "bg-accent/10 text-accent border-accent/30" : "text-muted")}>
                     <Users className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Participants</span>
                   </button>
-                  <button type="button" onClick={() => { setAddPeople((v) => !v); setEditChannel(false); setShowParticipants(false); }} aria-label="Add people" className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-separator px-2.5 py-1 text-xs text-muted transition hover:bg-hover hover:text-foreground">
-                    <UserPlus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Add people</span>
-                  </button>
+                  {selected.adminId === me?.id && (
+                    <button type="button" onClick={() => { setAddPeople((v) => !v); setEditChannel(false); setShowParticipants(false); }} aria-label="Add people" className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-separator px-2.5 py-1 text-xs text-muted transition hover:bg-hover hover:text-foreground">
+                      <UserPlus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Add people</span>
+                    </button>
+                  )}
                   {selected.adminId === me?.id && (
                     <button type="button" onClick={() => { setEditChannel((v) => !v); setAddPeople(false); setShowParticipants(false); }} aria-label="Settings" className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-separator px-2.5 py-1 text-xs text-muted transition hover:bg-hover hover:text-foreground">
                       <Settings className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Edit</span>
@@ -440,11 +447,17 @@ export function ChatApp() {
               )}
             </div>
 
-            <ChatEditorInput 
-              selected={selected}
-              inChannel={inChannel}
-              onSend={(content) => send.mutate(content)}
-            />
+            {selected.type === "TEXT" && !canAnswerChannels ? (
+              <div className="px-4 py-3 text-center text-sm text-muted bg-surface/50 border-t border-separator">
+                You do not have permission to post messages in this channel.
+              </div>
+            ) : (
+              <ChatEditorInput 
+                selected={selected}
+                inChannel={inChannel}
+                onSend={(content) => send.mutate(content)}
+              />
+            )}
           </>
         )}
       </div>

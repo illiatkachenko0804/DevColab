@@ -11,6 +11,5 @@ public record UpdateSnippetRequest(
         String collectionId,
         List<String> tags,
         Boolean pinned,
-        String visibility,
-        String revisionMessage
+        String visibility
 ) {}

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Folder, Lock, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createSnippet } from "@/lib/snippets";
+import { markNotificationReadByLink } from "@/lib/notifications";
 import { subscribe } from "@/lib/ws";
 import { useOS } from "@/stores/os";
 import { Sidebar } from "./snippets/sidebar";
@@ -33,24 +34,28 @@ export function SnippetsApp() {
     if (pendingSnippet) {
       setSelectedId(pendingSnippet);
       setPendingSnippet(null);
+      // Mark snippet notifications as read
+      if (ws) {
+        markNotificationReadByLink(ws, "snippet", pendingSnippet).then(() => {
+          qc.invalidateQueries({ queryKey: ["notifications", ws] });
+        });
+      }
     }
-  }, [pendingSnippet, setPendingSnippet]);
+  }, [pendingSnippet, setPendingSnippet, ws, qc]);
 
   // WebSocket real-time updates
   useEffect(() => {
     if (!ws) return;
     const unsub = subscribe(`/topic/workspace.${ws}.snippets`, () => {
       setTimeout(() => {
-        qc.invalidateQueries({ queryKey: ["snippets", ws] });
-        qc.invalidateQueries({ queryKey: ["snippet-collections", ws] });
-        qc.invalidateQueries({ queryKey: ["snippet-tags", ws] });
-        if (selectedId) {
-          qc.invalidateQueries({ queryKey: ["snippet", selectedId] });
-        }
+        qc.invalidateQueries({ queryKey: ["snippets"] });
+        qc.invalidateQueries({ queryKey: ["snippet-collections"] });
+        qc.invalidateQueries({ queryKey: ["snippet-tags"] });
+        qc.invalidateQueries({ queryKey: ["snippet"] });
       }, 100);
     });
     return () => unsub();
-  }, [ws, qc, selectedId]);
+  }, [ws, qc]);
 
   return (
     <div className="relative flex min-h-0 flex-1 bg-surface/30 text-foreground">

@@ -75,11 +75,6 @@ public class SnippetController {
         return snippets.update(snippetId, CurrentUser.id(auth), req);
     }
 
-    @PostMapping("/api/snippets/{snippetId}/fork")
-    public SnippetResponse fork(@PathVariable UUID snippetId, Authentication auth) {
-        return snippets.fork(snippetId, CurrentUser.id(auth));
-    }
-
     @GetMapping("/api/snippets/{snippetId}")
     public SnippetDetailResponse get(@PathVariable UUID snippetId, Authentication auth) {
         return snippets.get(snippetId, CurrentUser.id(auth));
@@ -100,8 +95,8 @@ public class SnippetController {
 
     // Collections
     @GetMapping("/api/workspaces/{workspaceId}/snippet-collections")
-    public List<CollectionResponse> listCollections(@PathVariable UUID workspaceId) {
-        return collections.listCollections(workspaceId);
+    public List<CollectionResponse> listCollections(@PathVariable UUID workspaceId, Authentication auth) {
+        return collections.listCollections(workspaceId, CurrentUser.id(auth));
     }
 
     @PostMapping("/api/workspaces/{workspaceId}/snippet-collections")
@@ -113,25 +108,25 @@ public class SnippetController {
 
     @PutMapping("/api/snippet-collections/{id}")
     public CollectionResponse updateCollection(
-            @PathVariable UUID id, @RequestParam UUID workspaceId, @Valid @RequestBody UpdateCollectionRequest req) {
-        return collections.updateCollection(id, workspaceId, req);
+            @PathVariable UUID id, @RequestParam UUID workspaceId, @Valid @RequestBody UpdateCollectionRequest req, Authentication auth) {
+        return collections.updateCollection(id, workspaceId, CurrentUser.id(auth), req);
     }
 
     @DeleteMapping("/api/snippet-collections/{id}")
-    public ResponseEntity<Void> deleteCollection(@PathVariable UUID id, @RequestParam UUID workspaceId) {
-        collections.deleteCollection(id, workspaceId);
+    public ResponseEntity<Void> deleteCollection(@PathVariable UUID id, @RequestParam UUID workspaceId, Authentication auth) {
+        collections.deleteCollection(id, workspaceId, CurrentUser.id(auth));
         return ResponseEntity.noContent().build();
     }
 
     // Tags
     @GetMapping("/api/workspaces/{workspaceId}/snippet-tags")
-    public List<TagResponse> listTags(@PathVariable UUID workspaceId) {
-        return tags.listTags(workspaceId);
+    public List<TagResponse> listTags(@PathVariable UUID workspaceId, Authentication auth) {
+        return tags.listTags(workspaceId, CurrentUser.id(auth));
     }
 
     @DeleteMapping("/api/snippet-tags/{id}")
-    public ResponseEntity<Void> deleteTag(@PathVariable UUID id, @RequestParam UUID workspaceId) {
-        tags.deleteTag(id, workspaceId);
+    public ResponseEntity<Void> deleteTag(@PathVariable UUID id, @RequestParam UUID workspaceId, Authentication auth) {
+        tags.deleteTag(id, workspaceId, CurrentUser.id(auth));
         return ResponseEntity.noContent().build();
     }
 
@@ -144,7 +139,7 @@ public class SnippetController {
 
     // Revisions
     @GetMapping("/api/snippets/{snippetId}/revisions")
-    public List<RevisionResponse> listRevisions(@PathVariable UUID snippetId) {
-        return revisions.listRevisions(snippetId);
+    public List<RevisionResponse> listRevisions(@PathVariable UUID snippetId, Authentication auth) {
+        return revisions.listRevisions(snippetId, CurrentUser.id(auth));
     }
 }

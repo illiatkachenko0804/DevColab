@@ -3,7 +3,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { ActivityApp } from "@/components/apps/activity-app";
 import { ChatApp } from "@/components/apps/chat-app";
 import { FilesApp } from "@/components/apps/files-app";
 import { KanbanApp } from "@/components/apps/kanban-app";
@@ -14,6 +13,7 @@ import { appMeta, type AppId } from "@/lib/apps";
 import { fetchPresence } from "@/lib/chat";
 import type { NotificationItem } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
+import { listMyWorkspaces } from "@/lib/workspaces";
 import { addConnectListener, subscribe, wsConnect, wsDisconnect } from "@/lib/ws";
 import { focusedApp, useOS } from "@/stores/os";
 import { CommandPalette } from "./command-palette";
@@ -32,8 +32,6 @@ function renderApp(id: AppId) {
       return <KanbanApp />;
     case "snippets":
       return <SnippetsApp />;
-    case "activity":
-      return <ActivityApp />;
     case "members":
       return <MembersApp />;
     case "files":
@@ -67,6 +65,8 @@ export function Desktop() {
   const setCommandOpen = useOS((s) => s.setCommandOpen);
   const setNotifOpen = useOS((s) => s.setNotifOpen);
   const setAccent = useOS((s) => s.setAccent);
+  const activeWorkspace = useOS((s) => s.activeWorkspace);
+  const setWorkspaces = useOS((s) => s.setWorkspaces);
 
   const setOnline = useOS((s) => s.setOnline);
   const isMobile = useIsMobile();
@@ -81,6 +81,20 @@ export function Desktop() {
     const unsubNotif = subscribe("/user/queue/notifications", (raw) => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["channels"] });
+      const item = raw as Partial<NotificationItem>;
+      if (
+        item.app === "members" &&
+        (item.type === "project_invite" || item.type === "project_removed" || item.type === "role_updated")
+      ) {
+        listMyWorkspaces().then((ws) => {
+          setWorkspaces(ws);
+          if (ws.length > 0 && !ws.find((w) => w.id === useOS.getState().activeWorkspace)) {
+            useOS.getState().setWorkspace(ws[0].id);
+          } else if (ws.length === 0) {
+            useOS.getState().setWorkspace("");
+          }
+        }).catch(() => {});
+      }
       // Show a banner toast for the incoming notification.
       if (raw && typeof raw === "object" && "id" in (raw as Record<string, unknown>)) {
         pushToast(raw as NotificationItem);
@@ -97,7 +111,49 @@ export function Desktop() {
       unsubConnect();
       wsDisconnect();
     };
-  }, [setOnline, qc]);
+  }, [setOnline, qc, pushToast, setWorkspaces]);
+
+  useEffect(() => {
+    if (!activeWorkspace) return;
+    const unsubMembers = subscribe(`/topic/workspace.${activeWorkspace}.members`, (raw) => {
+      const msg = raw as { type?: string; userId?: string };
+      if (msg.type === "SETTINGS_UPDATED" || (msg.type === "MEMBER_UPDATED" && msg.userId === useOS.getState().user?.id)) {
+        listMyWorkspaces().then(setWorkspaces).catch(() => {});
+        qc.invalidateQueries({ queryKey: ["workspaces"] });
+      }
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["members", activeWorkspace] });
+        qc.invalidateQueries({ queryKey: ["memberSearch", activeWorkspace] });
+
+        qc.invalidateQueries({ queryKey: ["channels"] });
+        qc.invalidateQueries({ queryKey: ["messages"] });
+        qc.invalidateQueries({ queryKey: ["memberSearch"] });
+        qc.invalidateQueries({ queryKey: ["channelMembers"] });
+
+
+        qc.invalidateQueries({ queryKey: ["board"] });
+        qc.invalidateQueries({ queryKey: ["tasks"] });
+        qc.invalidateQueries({ queryKey: ["comments"] });
+
+        qc.invalidateQueries({ queryKey: ["snippets"] });
+        qc.invalidateQueries({ queryKey: ["snippet"] });
+        qc.invalidateQueries({ queryKey: ["snippetComments"] });
+
+        qc.invalidateQueries({ queryKey: ["files"] });
+
+        qc.invalidateQueries({ queryKey: ["notifications"] });
+
+      }, 100);
+    });
+    // Refresh chat unread counts on every message in any channel
+    const unsubChat = subscribe(`/topic/workspace.${activeWorkspace}.chat`, () => {
+      qc.invalidateQueries({ queryKey: ["channels", activeWorkspace] });
+    });
+    return () => {
+      unsubMembers();
+      unsubChat();
+    };
+  }, [activeWorkspace, qc]);
 
   // Restore the saved accent color.
   useEffect(() => {

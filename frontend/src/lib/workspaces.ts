@@ -1,13 +1,16 @@
+import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { useOS } from "@/stores/os";
 
 export interface Workspace {
   id: string;
   name: string;
   slug?: string;
   description?: string | null;
-  role: "ADMIN" | "MEMBER";
+  role: string;
   initial: string;
   accent: string;
+  permissions: Record<string, boolean>;
 }
 
 interface WorkspaceDto {
@@ -15,7 +18,8 @@ interface WorkspaceDto {
   name: string;
   slug: string;
   description: string | null;
-  role: "ADMIN" | "MEMBER";
+  role: string;
+  permissions: Record<string, boolean>;
 }
 
 const ACCENTS = ["#0a84ff", "#bf5af2", "#30d158", "#ff9f0a", "#ff375f", "#64d2ff", "#5e5ce6"];
@@ -45,6 +49,7 @@ function toWorkspace(d: WorkspaceDto): Workspace {
     role: d.role,
     initial: workspaceInitial(d.name),
     accent: workspaceAccent(d.id),
+    permissions: d.permissions,
   };
 }
 
@@ -59,4 +64,15 @@ export async function createWorkspace(name: string, description?: string): Promi
     body: JSON.stringify({ name, description: description ?? null }),
   });
   return toWorkspace(data);
+}
+
+export function usePermissions() {
+  const ws = useOS((s) => s.activeWorkspace);
+  const { data: workspaces } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: listMyWorkspaces,
+    staleTime: 1000 * 60 * 5,
+  });
+  const current = workspaces?.find((w) => w.id === ws);
+  return current?.permissions ?? {};
 }

@@ -84,9 +84,23 @@ function ToastRenderer({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: str
 
   const handleClick = (toast: Toast) => {
     const n = toast.notification;
-    if (n.app) {
+    if (n.linkType === "task" && n.linkId) {
+      useOS.getState().setPendingTask(n.linkId);
+      openApp("projects");
+    } else if (n.linkType === "snippet" && n.linkId) {
+      useOS.getState().setPendingSnippet(n.linkId);
+      openApp("snippets");
+    } else if (n.linkType === "chat" && n.linkId) {
+      setPendingChat(n.linkId);
+      openApp("chat");
+    } else if (n.linkType === "project" && n.linkId) {
+      useOS.getState().setWorkspace(n.linkId);
+      if (n.app) {
+        openApp(n.app as AppId);
+      }
+    } else if (n.app) {
       openApp(n.app as AppId);
-      // Deep-link into the specific chat channel when relevant.
+      // Deep-link into the specific chat channel when relevant (fallback).
       if (n.app === "chat" && n.channelId) {
         setPendingChat(n.channelId);
       }
@@ -98,7 +112,9 @@ function ToastRenderer({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: str
     <div className="pointer-events-none fixed right-3 top-9 z-[60] flex w-80 flex-col gap-2">
       <AnimatePresence mode="popLayout">
         {toasts.map((t) => {
-          const meta = t.notification.app ? appMeta(t.notification.app as AppId) : null;
+          const n = t.notification;
+          const isClickable = n.type !== "project_removed" && (n.linkType || n.app);
+          const meta = n.app ? appMeta(n.app as AppId) : null;
           const Icon = meta?.icon;
           return (
             <motion.div
@@ -108,8 +124,8 @@ function ToastRenderer({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: str
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 80, scale: 0.95 }}
               transition={{ type: "spring", stiffness: 340, damping: 28 }}
-              className="glass-strong pointer-events-auto flex cursor-pointer items-center gap-3 rounded-2xl border border-separator p-3 shadow-[var(--shadow-pop)]"
-              onClick={() => handleClick(t)}
+              className={`glass-strong pointer-events-auto flex items-center gap-3 rounded-2xl border border-separator p-3 shadow-[var(--shadow-pop)] ${isClickable ? "cursor-pointer" : ""}`}
+              onClick={() => isClickable && handleClick(t)}
               role="alert"
             >
               <span

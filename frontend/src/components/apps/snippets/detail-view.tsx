@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2, MessageSquare, Star, Edit3, GitFork, Save, X, Folder, Hash, Link as LinkIcon, Check } from "lucide-react";
+import { Trash2, MessageSquare, Star, Edit3, Save, X, Folder, Hash, Link as LinkIcon, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 import { Avatar } from "@/components/ui/avatar";
@@ -13,10 +13,10 @@ import {
   deleteSnippet,
   addSnippetComment,
   toggleStarSnippet,
-  forkSnippet,
   updateSnippet,
   Snippet
 } from "@/lib/snippets";
+import { usePermissions } from "@/lib/workspaces";
 
 interface DetailViewProps {
   id: string;
@@ -38,6 +38,9 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
   const [editCode, setEditCode] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const permissions = usePermissions();
+  const canComment = permissions.comment === true;
 
   const detailQuery = useQuery({ queryKey: ["snippet", id], queryFn: () => getSnippet(id) });
   const detail = detailQuery.data;
@@ -67,14 +70,6 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
   const toggleStar = useMutation({
     mutationFn: () => toggleStarSnippet(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["snippet", id] }); qc.invalidateQueries({ queryKey: ["snippets", ws] }); }
-  });
-
-  const fork = useMutation({
-    mutationFn: () => forkSnippet(id),
-    onSuccess: (s) => {
-      qc.invalidateQueries({ queryKey: ["snippets", ws] });
-      onForked(s.id);
-    }
   });
 
   const update = useMutation({
@@ -138,22 +133,21 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
 
   return (
     <div className="flex h-full flex-col overflow-y-auto no-scrollbar">
-      {/* Header */}
       <div className="flex items-start justify-between border-b border-separator p-5 sm:p-6 bg-surface/30 flex-col sm:flex-row gap-4">
         <div className="min-w-0 flex-1">
-          <div className="group relative flex items-center gap-3 mb-2 pr-24">
-            <h2 className="text-2xl font-bold tracking-tight">{s.title}</h2>
-            {s.pinned && <span className="bg-accent/20 text-accent text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">Pinned</span>}
-            {s.visibility === "PRIVATE" && <span className="bg-muted text-muted-foreground text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">Private</span>}
+          <div className="group relative flex items-center gap-3 mb-2 pr-24 rounded-lg border border-transparent hover:border-dashed hover:border-separator transition-all -ml-2 p-2">
+            <h2 className="text-2xl font-bold tracking-tight bg-transparent">{s.title}</h2>
+            {s.pinned && <span className="bg-accent/20 text-accent text-[10px] uppercase font-bold px-2 py-0.5 rounded-full shrink-0">Pinned</span>}
+            {s.visibility === "PRIVATE" && <span className="bg-muted text-muted-foreground text-[10px] uppercase font-bold px-2 py-0.5 rounded-full shrink-0">Private</span>}
             <button 
-              className={cn("opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-surface border text-xs font-medium cursor-pointer flex items-center gap-1.5 ml-2", copiedLink ? "border-success text-success" : "border-separator text-muted hover:border-accent hover:text-accent")}
+              className={cn("absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-surface border text-xs font-medium cursor-pointer flex items-center gap-1.5", copiedLink ? "border-success text-success" : "border-separator text-muted hover:border-accent hover:text-accent")}
               onClick={(e) => {
                 e.stopPropagation();
-                const mdLink = `[${s.title}](snippets://snippet/${s.id})`;
+                const mdLink = `[Snippet](snippets://snippet/${s.id}) ${s.title}`;
                 navigator.clipboard.write([
                   new ClipboardItem({
                     "text/plain": new Blob([mdLink], { type: "text/plain" }),
-                    "text/html": new Blob([`<a href="snippets://snippet/${s.id}">${s.title}</a>`], { type: "text/html" })
+                    "text/html": new Blob([`<a href="snippets://snippet/${s.id}">Snippet</a> ${s.title}`], { type: "text/html" })
                   })
                 ]);
                 setCopiedLink(true);
@@ -161,7 +155,6 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
               }}
             >
               {copiedLink ? <Check className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
-              {copiedLink ? "Copied" : "Copy Link"}
             </button>
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -258,27 +251,33 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
             ))}
             {detail.comments.length === 0 && <p className="text-sm text-muted-foreground italic">No comments yet. Start the discussion!</p>}
           </div>
-          <form onSubmit={(e) => { e.preventDefault(); if (comment.trim()) addComment.mutate(comment.trim()); }} className="flex gap-3 items-start">
-            {detail.snippet.author && <Avatar name={detail.snippet.author.displayName} size={36} className="mt-1" />}
-            <div className="flex-1 space-y-3">
-              <textarea 
-                value={comment} 
-                onChange={(e) => setComment(e.target.value)} 
-                placeholder="Add a comment…" 
-                rows={3}
-                className="w-full rounded-lg border border-separator bg-surface px-4 py-3 text-sm outline-none focus:border-accent resize-y" 
-              />
-              <div className="flex justify-end">
-                <button 
-                  type="submit" 
-                  disabled={!comment.trim() || addComment.isPending} 
-                  className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
-                >
-                  Post Comment
-                </button>
+          {canComment ? (
+            <form onSubmit={(e) => { e.preventDefault(); if (comment.trim()) addComment.mutate(comment.trim()); }} className="flex gap-3 items-start">
+              {detail.snippet.author && <Avatar name={detail.snippet.author.displayName} size={36} className="mt-1" />}
+              <div className="flex-1 space-y-3">
+                <textarea 
+                  value={comment} 
+                  onChange={(e) => setComment(e.target.value)} 
+                  placeholder="Add a comment…" 
+                  rows={3}
+                  className="w-full rounded-lg border border-separator bg-surface px-4 py-3 text-sm outline-none focus:border-accent resize-y" 
+                />
+                <div className="flex justify-end">
+                  <button 
+                    type="submit" 
+                    disabled={!comment.trim() || addComment.isPending} 
+                    className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
+                  >
+                    Post Comment
+                  </button>
+                </div>
               </div>
+            </form>
+          ) : (
+            <div className="rounded-lg border border-separator bg-surface/50 p-4 text-sm text-muted italic text-center">
+              You do not have permission to comment on snippets.
             </div>
-          </form>
+          )}
         </div>
       </div>
     </div>

@@ -120,14 +120,9 @@ export function updateSnippet(
     tags?: string[];
     pinned?: boolean;
     visibility?: string;
-    revisionMessage?: string;
   }
 ): Promise<Snippet> {
   return api(`/api/snippets/${id}`, { method: "PATCH", body: JSON.stringify(body) });
-}
-
-export function forkSnippet(id: string): Promise<Snippet> {
-  return api(`/api/snippets/${id}/fork`, { method: "POST" });
 }
 
 export function getSnippet(id: string): Promise<SnippetDetail> {

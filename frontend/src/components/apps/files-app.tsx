@@ -13,6 +13,7 @@ import {
   type ProjectFile,
 } from "@/lib/files";
 import { relativeTime } from "@/lib/utils";
+import { usePermissions } from "@/lib/workspaces";
 import { useOS } from "@/stores/os";
 
 const isImage = (f: ProjectFile) => (f.contentType ?? "").startsWith("image/");
@@ -24,6 +25,9 @@ export function FilesApp() {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<ProjectFile | null>(null);
+
+  const permissions = usePermissions();
+  const canManageFiles = permissions.manageFiles === true;
 
   const filesQuery = useQuery({ queryKey: ["files", ws], queryFn: () => listFiles(ws), enabled: !!ws });
   const files = filesQuery.data ?? [];
@@ -48,15 +52,19 @@ export function FilesApp() {
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator px-4">
         <span className="font-semibold">Files</span>
         <span className="text-sm text-muted">· {files.length}</span>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={upload.isPending}
-          className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
-        >
-          <Upload className="h-4 w-4" /> {upload.isPending ? "Uploading…" : "Upload"}
-        </button>
-        <input ref={inputRef} type="file" hidden onChange={onPick} />
+        {canManageFiles && (
+          <>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={upload.isPending}
+              className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
+            >
+              <Upload className="h-4 w-4" /> {upload.isPending ? "Uploading…" : "Upload"}
+            </button>
+            <input ref={inputRef} type="file" hidden onChange={onPick} />
+          </>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 no-scrollbar">
@@ -87,7 +95,7 @@ export function FilesApp() {
                 {f.uploader && <Avatar name={f.uploader.displayName} size={16} />}
                 <span className="truncate text-[11px] text-muted">{f.uploader?.displayName.split(" ")[0]}</span>
                 <a href={fileUrl(f.id, true)} aria-label="Download" className="ml-auto flex h-6 w-6 cursor-pointer items-center justify-center rounded text-faint hover:bg-hover hover:text-foreground"><Download className="h-3.5 w-3.5" /></a>
-                {f.uploader?.id === me?.id && (
+                {(f.uploader?.id === me?.id || canManageFiles) && canManageFiles && (
                   <button type="button" aria-label="Delete file" onClick={() => remove.mutate(f.id)} className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-faint hover:bg-danger/10 hover:text-danger"><Trash2 className="h-3.5 w-3.5" /></button>
                 )}
               </div>

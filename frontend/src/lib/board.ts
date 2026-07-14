@@ -89,3 +89,20 @@ export function moveTask(taskId: string, columnId: string, position: number): Pr
 export function deleteTask(taskId: string): Promise<void> {
   return api(`/api/tasks/${taskId}`, { method: "DELETE" });
 }
+
+export interface Sprint {
+  id: string;
+  name: string;
+  goal: string | null;
+  status: "PLANNING" | "ACTIVE" | "COMPLETED";
+  startDate: string | null;
+  endDate: string | null;
+  tasksCompleted: number;
+  tasksTotal: number;
+  pointsCompleted: number;
+  pointsTotal: number;
+}
+
+export function getSprints(ws: string): Promise<Sprint[]> {
+  return api(`/api/workspaces/${ws}/sprints`);
+}

@@ -45,6 +45,9 @@ public class FileService {
     @Transactional
     public FileResponse upload(UUID workspaceId, UUID userId, MultipartFile file, boolean hidden) {
         guard.requireMember(workspaceId, userId);
+        if (!hidden) {
+            guard.requirePermission(workspaceId, userId, "manageFiles");
+        }
         if (file == null || file.isEmpty()) throw ApiException.badRequest("No file provided");
 
         String storageKey = UUID.randomUUID().toString();
@@ -68,7 +71,7 @@ public class FileService {
 
     @Transactional(readOnly = true)
     public List<FileResponse> list(UUID workspaceId, UUID userId) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "viewApps");
         return files.findByWorkspaceIdAndHiddenFalseOrderByCreatedAtDesc(workspaceId).stream()
                 .map(f -> FileResponse.of(f, f.getUploaderId() == null ? null
                         : users.findById(f.getUploaderId()).orElse(null)))
@@ -90,8 +93,8 @@ public class FileService {
     @Transactional
     public void delete(UUID fileId, UUID userId) {
         StoredFile f = requireAccess(fileId, userId);
-        if (f.getUploaderId() != null && !f.getUploaderId().equals(userId)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Only the uploader can delete this file");
+        if (!f.isHidden() || (f.getUploaderId() != null && !f.getUploaderId().equals(userId))) {
+            guard.requirePermission(f.getWorkspaceId(), userId, "manageFiles");
         }
         try {
             Files.deleteIfExists(root.resolve(f.getStorageKey()));

@@ -9,6 +9,8 @@ export interface NotificationItem {
   channelId: string | null;
   createdAt: string;
   read: boolean;
+  linkType?: string;
+  linkId?: string;
 }
 
 export interface NotificationCounts {
@@ -34,4 +36,12 @@ export function markAllNotificationsRead(ws: string): Promise<void> {
 
 export function markNotificationRead(id: string): Promise<void> {
   return api(`/api/notifications/${id}/read`, { method: "POST" });
+}
+
+export function markNotificationReadByApp(ws: string, app: string): Promise<void> {
+  return api(`/api/workspaces/${ws}/notifications/read-by-app?app=${app}`, { method: "POST" });
+}
+
+export function markNotificationReadByLink(ws: string, linkType: string, linkId: string): Promise<void> {
+  return api(`/api/workspaces/${ws}/notifications/read-by-link?linkType=${linkType}&linkId=${linkId}`, { method: "POST" });
 }

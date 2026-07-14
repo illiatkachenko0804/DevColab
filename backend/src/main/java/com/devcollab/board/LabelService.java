@@ -29,14 +29,14 @@ public class LabelService {
 
     @Transactional(readOnly = true)
     public List<LabelResponse> listLabels(UUID workspaceId, UUID userId) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "viewApps");
         return labels.findByWorkspaceId(workspaceId).stream()
                 .map(LabelResponse::of).toList();
     }
 
     @Transactional
     public LabelResponse createLabel(UUID workspaceId, UUID userId, CreateLabelRequest req) {
-        guard.requireMember(workspaceId, userId);
+        guard.requirePermission(workspaceId, userId, "manageTasks");
         Label l = new Label();
         l.setWorkspaceId(workspaceId);
         l.setName(req.name());
@@ -50,7 +50,7 @@ public class LabelService {
     public void deleteLabel(UUID labelId, UUID userId) {
         Label l = labels.findById(labelId)
                 .orElseThrow(() -> ApiException.badRequest("Label not found"));
-        guard.requireMember(l.getWorkspaceId(), userId);
+        guard.requirePermission(l.getWorkspaceId(), userId, "manageTasks");
         labels.delete(l);
         broadcastBoardUpdate(l.getWorkspaceId());
     }
@@ -59,7 +59,7 @@ public class LabelService {
     public LabelResponse updateLabel(UUID labelId, UUID userId, CreateLabelRequest req) {
         Label l = labels.findById(labelId)
                 .orElseThrow(() -> ApiException.badRequest("Label not found"));
-        guard.requireMember(l.getWorkspaceId(), userId);
+        guard.requirePermission(l.getWorkspaceId(), userId, "manageTasks");
         if (req.name() != null) l.setName(req.name());
         if (req.color() != null) l.setColor(req.color());
         labels.save(l);
@@ -71,7 +71,7 @@ public class LabelService {
     public void attachLabel(UUID taskId, UUID labelId, UUID userId) {
         Task t = tasks.findById(taskId).orElseThrow(() -> ApiException.badRequest("Task not found"));
         Label l = labels.findById(labelId).orElseThrow(() -> ApiException.badRequest("Label not found"));
-        guard.requireMember(l.getWorkspaceId(), userId);
+        guard.requirePermission(l.getWorkspaceId(), userId, "manageTasks");
         t.getLabels().add(l);
         tasks.save(t);
         broadcastBoardUpdate(l.getWorkspaceId());
@@ -81,7 +81,7 @@ public class LabelService {
     public void detachLabel(UUID taskId, UUID labelId, UUID userId) {
         Task t = tasks.findById(taskId).orElseThrow(() -> ApiException.badRequest("Task not found"));
         Label l = labels.findById(labelId).orElseThrow(() -> ApiException.badRequest("Label not found"));
-        guard.requireMember(l.getWorkspaceId(), userId);
+        guard.requirePermission(l.getWorkspaceId(), userId, "manageTasks");
         t.getLabels().remove(l);
         tasks.save(t);
         broadcastBoardUpdate(l.getWorkspaceId());

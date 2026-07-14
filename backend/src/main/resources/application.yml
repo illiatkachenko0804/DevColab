@@ -42,11 +42,14 @@ spring:
           github:
             # Real GitHub login activates once these are set. "disabled" lets
             # the app boot without credentials (email/password still works).
-            client-id: ${GITHUB_CLIENT_ID:disabled}
-            client-secret: ${GITHUB_CLIENT_SECRET:disabled}
+            client-id: ${GITHUB_CLIENT_ID:Ov23ligMUFCmgiKI4DBF}
+            client-secret: ${GITHUB_CLIENT_SECRET:6640f9d267b985230225deb8699930e5e50a241b}
             scope: read:user,user:email
 
 server:
+  error:
+    include-stacktrace: always
+    include-message: always
   port: ${SERVER_PORT:8080}
 
 app:

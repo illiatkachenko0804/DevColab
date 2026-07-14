@@ -47,7 +47,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             throws IOException {
 
         OAuth2User principal = (OAuth2User) authentication.getPrincipal();
-        String githubId = String.valueOf(principal.getAttribute("id"));
+        Object idObj = principal.getAttribute("id");
+        String githubId = idObj != null ? String.valueOf(idObj) : null;
         String login = principal.getAttribute("login");
         String name = principal.getAttribute("name");
         String avatar = principal.getAttribute("avatar_url");
@@ -70,7 +71,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         }
         user.setAvatarUrl(avatar);
         user.setEmailVerified(true); // GitHub identities are pre-verified
-        users.save(user);
+        user = users.save(user);
 
         response.addHeader(HttpHeaders.SET_COOKIE,
                 cookies.access(jwt.issueAccess(user.getId(), user.getEmail()), jwt.accessTtlSeconds()).toString());

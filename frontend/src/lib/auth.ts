@@ -7,6 +7,7 @@ export interface AuthUser {
   devTag: string;
   avatarUrl: string | null;
   emailVerified: boolean;
+  hasPassword: boolean;
 }
 
 export interface RegisterResult {
@@ -48,6 +49,10 @@ export function updateProfile(body: {
   avatarUrl?: string | null;
 }): Promise<AuthUser> {
   return api("/api/profile", { method: "PATCH", body: JSON.stringify(body) });
+}
+
+export function setPassword(oldPassword?: string, newPassword?: string): Promise<void> {
+  return api("/api/auth/password", { method: "PUT", body: JSON.stringify({ oldPassword, newPassword }) });
 }
 
 export function fetchMe(): Promise<AuthUser> {

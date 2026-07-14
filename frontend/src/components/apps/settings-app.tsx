@@ -5,7 +5,9 @@ import { Bell, Check, FolderKanban, ImageIcon, Monitor, Moon, Paintbrush, Pencil
 import { useTheme } from "next-themes";
 import { useRef, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { authErrorMessage, updateProfile } from "@/lib/auth";
+import { PasswordStrength } from "@/components/auth/password-strength";
+import { authErrorMessage, updateProfile, setPassword } from "@/lib/auth";
+import { evaluatePassword } from "@/lib/password";
 import { fileUrl, uploadFile } from "@/lib/files";
 import {
   createProjectRole,
@@ -28,6 +30,7 @@ import { useOS } from "@/stores/os";
 
 const CATEGORIES = [
   { id: "profile", label: "Profile", icon: User, color: "var(--app-chat)" },
+  { id: "security", label: "Security", icon: Shield, color: "#ef4444" },
   { id: "appearance", label: "Appearance", icon: Paintbrush, color: "var(--app-snippets)" },
   { id: "notifications", label: "Notifications", icon: Bell, color: "var(--app-projects)" },
   { id: "project", label: "Project", icon: FolderKanban, color: "var(--app-members)" },
@@ -580,6 +583,17 @@ export function SettingsApp() {
   const [pName, setPName] = useState(user?.displayName ?? "");
   const [pTag, setPTag] = useState(user?.devTag ?? "");
   const [pAvatarUrl, setPAvatarUrl] = useState(user?.avatarUrl ?? "");
+  
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdSaved, setPwdSaved] = useState(false);
+  const [pwdError, setPwdError] = useState<string | null>(null);
+
+  const pw = evaluatePassword(newPassword);
+  const matches = newPassword.length > 0 && newPassword === confirmPassword;
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -600,6 +614,27 @@ export function SettingsApp() {
       setProfileError(authErrorMessage(e).message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const savePassword = async () => {
+    setPwdSaving(true);
+    setPwdError(null);
+    setPwdSaved(false);
+    try {
+      await setPassword(oldPassword || undefined, newPassword);
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPwdSaved(true);
+      if (user) {
+        updateUser({ ...user, hasPassword: true });
+      }
+      setTimeout(() => setPwdSaved(false), 2000);
+    } catch (e) {
+      setPwdError(authErrorMessage(e).message);
+    } finally {
+      setPwdSaving(false);
     }
   };
 
@@ -694,6 +729,96 @@ export function SettingsApp() {
                     <Check className="h-4 w-4" /> Saved
                   </span>
                 )}
+              </div>
+            </section>
+          )}
+
+          {cat === "security" && (
+            <section>
+              <h2 className="mb-4 text-lg font-semibold">Security</h2>
+              
+              <div className="mb-6 rounded-xl border border-separator bg-surface p-4">
+                <h3 className="mb-1 font-semibold">{user?.hasPassword ? "Change Password" : "Set Password"}</h3>
+                <p className="mb-4 text-sm text-muted">
+                  {user?.hasPassword
+                    ? "Update your password to keep your account secure."
+                    : "Since you signed up with GitHub, you can set a password here to log in using your email later."}
+                </p>
+
+                {pwdError && (
+                  <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                    {pwdError}
+                  </div>
+                )}
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    savePassword();
+                  }}
+                  className="space-y-4"
+                >
+                  {user?.hasPassword && (
+                    <Field label="Current Password">
+                      <input
+                        type="password"
+                        required
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        className={inputClass}
+                      />
+                    </Field>
+                  )}
+                  
+                  <div>
+                    <Field label="New Password">
+                      <input
+                        type="password"
+                        required
+                        minLength={8}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className={inputClass}
+                      />
+                    </Field>
+                    <div className="mt-1">
+                      <PasswordStrength password={newPassword} />
+                    </div>
+                  </div>
+
+                  <Field label="Confirm Password">
+                    <div className="relative">
+                      <input
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className={cn(inputClass, confirmPassword && !matches && "border-danger")}
+                      />
+                      {matches && (
+                        <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-success" />
+                      )}
+                    </div>
+                  </Field>
+                  {confirmPassword && !matches && (
+                    <p className="-mt-3 text-xs text-danger">Passwords do not match</p>
+                  )}
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      type="submit"
+                      disabled={pwdSaving || !pw.valid || !matches || (user?.hasPassword && !oldPassword)}
+                      className="cursor-pointer rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
+                    >
+                      {pwdSaving ? "Saving…" : "Save Password"}
+                    </button>
+                    {pwdSaved && (
+                      <span className="flex items-center gap-1 text-sm text-success">
+                        <Check className="h-4 w-4" /> Saved
+                      </span>
+                    )}
+                  </div>
+                </form>
               </div>
             </section>
           )}

@@ -139,6 +139,30 @@ public class AuthService {
         return saved;
     }
 
+    @Transactional
+    public void setPassword(UUID userId, String oldPassword, String newPassword) {
+        User user = users.findById(userId)
+                .orElseThrow(() -> ApiException.unauthorized("User not found"));
+                
+        if (user.getPasswordHash() != null) {
+            if (oldPassword == null || oldPassword.isBlank()) {
+                throw ApiException.badRequest("Current password is required");
+            }
+            if (!encoder.matches(oldPassword, user.getPasswordHash())) {
+                throw ApiException.badRequest("Incorrect current password");
+            }
+        }
+        
+        PasswordPolicy.Result result = PasswordPolicy.evaluate(newPassword);
+        if (!result.valid()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Password does not meet the requirements", result.violations());
+        }
+        
+        user.setPasswordHash(encoder.encode(newPassword));
+        users.save(user);
+    }
+
     /** Builds a unique @handle from an email or seed string. */
     public String uniqueDevTag(String seed) {
         String base = seed.contains("@") ? seed.substring(0, seed.indexOf('@')) : seed;

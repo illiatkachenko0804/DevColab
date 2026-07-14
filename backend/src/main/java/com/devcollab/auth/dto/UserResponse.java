@@ -8,7 +8,8 @@ public record UserResponse(
         String displayName,
         String devTag,
         String avatarUrl,
-        boolean emailVerified) {
+        boolean emailVerified,
+        boolean hasPassword) {
 
     public static UserResponse from(User u) {
         return new UserResponse(
@@ -17,6 +18,7 @@ public record UserResponse(
                 u.getDisplayName(),
                 u.getDevTag(),
                 u.getAvatarUrl(),
-                u.isEmailVerified());
+                u.isEmailVerified(),
+                u.getPasswordHash() != null);
     }
 }

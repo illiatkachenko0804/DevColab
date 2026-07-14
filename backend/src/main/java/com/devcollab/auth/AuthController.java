@@ -87,6 +87,17 @@ public class AuthController {
         }
         return ResponseEntity.ok(UserResponse.from(authService.requireById(id)));
     }
+    
+    @org.springframework.web.bind.annotation.PutMapping("/password")
+    public ResponseEntity<Void> setPassword(
+            Authentication authentication,
+            @Valid @RequestBody com.devcollab.auth.dto.SetPasswordRequest req) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof UUID id)) {
+            throw ApiException.unauthorized("Not authenticated");
+        }
+        authService.setPassword(id, req.oldPassword(), req.newPassword());
+        return ResponseEntity.noContent().build();
+    }
 
     // --- helpers ------------------------------------------------------------
 

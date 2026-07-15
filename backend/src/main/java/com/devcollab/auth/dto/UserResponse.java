@@ -9,7 +9,8 @@ public record UserResponse(
         String devTag,
         String avatarUrl,
         boolean emailVerified,
-        boolean hasPassword) {
+        boolean hasPassword,
+        boolean twoFactorEnabled) {
 
     public static UserResponse from(User u) {
         return new UserResponse(
@@ -19,6 +20,7 @@ public record UserResponse(
                 u.getDevTag(),
                 u.getAvatarUrl(),
                 u.isEmailVerified(),
-                u.getPasswordHash() != null);
+                u.getPasswordHash() != null,
+                u.isTwoFactorEnabled());
     }
 }

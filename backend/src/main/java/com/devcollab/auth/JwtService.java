@@ -58,6 +58,22 @@ public class JwtService {
         }
     }
 
+    public String issueTwoFactorToken(UUID userId, String email) {
+        // 5 minutes TTL for 2FA login verification
+        return build(userId, "2fa", 300, builder -> builder.claim("email", email));
+    }
+
+    public UUID parseTwoFactorToken(String token) {
+        try {
+            Claims claims = Jwts.parser().verifyWith(key).build()
+                    .parseSignedClaims(token).getPayload();
+            if (!"2fa".equals(claims.get("type", String.class))) return null;
+            return UUID.fromString(claims.getSubject());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public UUID parseRefresh(String token) {
         try {
             Claims claims = Jwts.parser().verifyWith(key).build()

@@ -33,11 +33,13 @@ public class AuthController {
     private final AuthService authService;
     private final JwtService jwt;
     private final CookieService cookies;
+    private final TwoFactorService twoFactorService;
 
-    public AuthController(AuthService authService, JwtService jwt, CookieService cookies) {
+    public AuthController(AuthService authService, JwtService jwt, CookieService cookies, TwoFactorService twoFactorService) {
         this.authService = authService;
         this.jwt = jwt;
         this.cookies = cookies;
+        this.twoFactorService = twoFactorService;
     }
 
     @PostMapping("/register")
@@ -58,8 +60,15 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserResponse> login(@Valid @RequestBody LoginRequest req) {
-        return session(authService.login(req));
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req) {
+        com.devcollab.auth.dto.LoginResult result = authService.login(req);
+        if (result.requiresTwoFactor()) {
+            return ResponseEntity.accepted()
+                    .header(HttpHeaders.SET_COOKIE,
+                            cookies.twoFactor(jwt.issueTwoFactorToken(result.user().getId(), result.user().getEmail()), 300).toString())
+                    .body(Map.of("requiresTwoFactor", true, "email", result.user().getEmail()));
+        }
+        return session(result.user());
     }
 
     /** Issues a fresh access token (and rotates the refresh) from the refresh cookie. */
@@ -97,6 +106,71 @@ public class AuthController {
         }
         authService.setPassword(id, req.oldPassword(), req.newPassword());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/2fa/setup")
+    public ResponseEntity<Map<String, String>> setupTwoFactor(Authentication authentication) throws dev.samstevens.totp.exceptions.QrGenerationException {
+        if (authentication == null || !(authentication.getPrincipal() instanceof UUID id)) {
+            throw ApiException.unauthorized("Not authenticated");
+        }
+        User user = authService.requireById(id);
+        String secret = authService.setupTwoFactor(id);
+        String qrUri = twoFactorService.generateQrCodeUri(secret, user.getEmail());
+        return ResponseEntity.ok(Map.of("secret", secret, "qrCodeUri", qrUri));
+    }
+
+    @PostMapping("/2fa/enable")
+    public ResponseEntity<Void> enableTwoFactor(
+            Authentication authentication,
+            @Valid @RequestBody com.devcollab.auth.dto.TwoFactorCodeRequest req) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof UUID id)) {
+            throw ApiException.unauthorized("Not authenticated");
+        }
+        authService.enableTwoFactor(id, req.code());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/2fa/disable")
+    public ResponseEntity<Void> disableTwoFactor(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof UUID id)) {
+            throw ApiException.unauthorized("Not authenticated");
+        }
+        authService.disableTwoFactor(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/2fa/status")
+    public ResponseEntity<Map<String, Boolean>> twoFactorStatus(
+            @CookieValue(name = CookieService.TWO_FACTOR, required = false) String token) {
+        if (token == null) return ResponseEntity.ok(Map.of("requiresTwoFactor", false));
+        UUID userId = jwt.parseTwoFactorToken(token);
+        return ResponseEntity.ok(Map.of("requiresTwoFactor", userId != null));
+    }
+
+    @PostMapping("/2fa/login-verify")
+    public ResponseEntity<UserResponse> loginVerifyTwoFactor(
+            @CookieValue(name = CookieService.TWO_FACTOR, required = false) String token,
+            @Valid @RequestBody com.devcollab.auth.dto.TwoFactorCodeRequest req) {
+        if (token == null) throw ApiException.unauthorized("No 2FA session");
+        UUID userId = jwt.parseTwoFactorToken(token);
+        if (userId == null) throw ApiException.unauthorized("2FA session expired");
+        
+        User user = authService.requireById(userId);
+        if (!user.isTwoFactorEnabled() || user.getTwoFactorSecret() == null) {
+            throw ApiException.badRequest("2FA is not enabled for this account");
+        }
+        if (!twoFactorService.verifyCode(user.getTwoFactorSecret(), req.code())) {
+            throw ApiException.unauthorized("Invalid 2FA code");
+        }
+        
+        // Success: clear 2FA cookie and issue standard session
+        String access = jwt.issueAccess(user.getId(), user.getEmail());
+        String refresh = jwt.issueRefresh(user.getId());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookies.clear(CookieService.TWO_FACTOR).toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.access(access, jwt.accessTtlSeconds()).toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.refresh(refresh, jwt.refreshTtlSeconds()).toString())
+                .body(UserResponse.from(user));
     }
 
     // --- helpers ------------------------------------------------------------

@@ -15,6 +15,7 @@ public class CookieService {
 
     public static final String ACCESS = "dc_access";
     public static final String REFRESH = "dc_refresh";
+    public static final String TWO_FACTOR = "dc_2fa";
 
     private final boolean secure;
     private final String sameSite;
@@ -34,10 +35,15 @@ public class CookieService {
         return base(REFRESH, token, maxAgeSeconds).path("/api/auth").build();
     }
 
+    public ResponseCookie twoFactor(String token, long maxAgeSeconds) {
+        return base(TWO_FACTOR, token, maxAgeSeconds).path("/api/auth").build();
+    }
+
     public ResponseCookie clear(String name) {
+        String path = (name.equals(REFRESH) || name.equals(TWO_FACTOR)) ? "/api/auth" : "/";
         return ResponseCookie.from(name, "")
                 .httpOnly(true).secure(secure).sameSite(sameSite)
-                .path(name.equals(REFRESH) ? "/api/auth" : "/").maxAge(0).build();
+                .path(path).maxAge(0).build();
     }
 
     private ResponseCookie.ResponseCookieBuilder base(String name, String value, long maxAge) {

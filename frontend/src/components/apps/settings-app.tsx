@@ -6,7 +6,7 @@ import { useTheme } from "next-themes";
 import { useRef, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { PasswordStrength } from "@/components/auth/password-strength";
-import { authErrorMessage, updateProfile, setPassword } from "@/lib/auth";
+import { authErrorMessage, updateProfile, setPassword, setupTwoFactor, enableTwoFactor, disableTwoFactor } from "@/lib/auth";
 import { evaluatePassword } from "@/lib/password";
 import { fileUrl, uploadFile } from "@/lib/files";
 import {
@@ -598,7 +598,54 @@ export function SettingsApp() {
   const [saved, setSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  const [tfaSetupUri, setTfaSetupUri] = useState<string | null>(null);
+  const [tfaCode, setTfaCode] = useState("");
+  const [tfaLoading, setTfaLoading] = useState(false);
+  const [tfaError, setTfaError] = useState<string | null>(null);
+
   const dirty = pName !== (user?.displayName ?? "") || pTag !== (user?.devTag ?? "") || pAvatarUrl !== (user?.avatarUrl ?? "");
+
+  const handleSetup2FA = async () => {
+    setTfaLoading(true);
+    setTfaError(null);
+    try {
+      const res = await setupTwoFactor();
+      setTfaSetupUri(res.qrCodeUri);
+    } catch (e) {
+      setTfaError(authErrorMessage(e).message);
+    } finally {
+      setTfaLoading(false);
+    }
+  };
+
+  const handleEnable2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTfaLoading(true);
+    setTfaError(null);
+    try {
+      await enableTwoFactor(tfaCode);
+      if (user) updateUser({ ...user, twoFactorEnabled: true });
+      setTfaSetupUri(null);
+      setTfaCode("");
+    } catch (err) {
+      setTfaError(authErrorMessage(err).message);
+    } finally {
+      setTfaLoading(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    setTfaLoading(true);
+    setTfaError(null);
+    try {
+      await disableTwoFactor();
+      if (user) updateUser({ ...user, twoFactorEnabled: false });
+    } catch (e) {
+      setTfaError(authErrorMessage(e).message);
+    } finally {
+      setTfaLoading(false);
+    }
+  };
 
   const saveProfile = async () => {
     setSaving(true);
@@ -819,6 +866,81 @@ export function SettingsApp() {
                     )}
                   </div>
                 </form>
+              </div>
+
+              <div className="mt-8 rounded-xl border border-separator bg-surface p-6">
+                <h3 className="mb-4 text-base font-semibold">Two-Factor Authentication (2FA)</h3>
+                
+                {user?.twoFactorEnabled ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-faint">
+                      Two-factor authentication is currently <strong>enabled</strong>. Your account is secured with a TOTP authenticator app.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleDisable2FA}
+                      disabled={tfaLoading}
+                      className="cursor-pointer rounded-lg bg-danger/10 px-4 py-2 text-sm font-semibold text-danger transition hover:bg-danger/20 disabled:opacity-50"
+                    >
+                      Disable 2FA
+                    </button>
+                    {tfaError && <p className="text-sm text-danger">{tfaError}</p>}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-faint">
+                      Secure your account by requiring a 6-digit code from your authenticator app when you log in.
+                    </p>
+                    
+                    {!tfaSetupUri ? (
+                      <button
+                        type="button"
+                        onClick={handleSetup2FA}
+                        disabled={tfaLoading}
+                        className="cursor-pointer rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
+                      >
+                        Set up 2FA
+                      </button>
+                    ) : (
+                      <form onSubmit={handleEnable2FA} className="space-y-4 rounded-lg border p-4">
+                        <p className="text-sm">1. Scan this QR code with your authenticator app (like Google Authenticator or Authy):</p>
+                        <div className="flex justify-center rounded-lg bg-white p-4 w-max mx-auto">
+                          <img src={tfaSetupUri} alt="2FA QR Code" className="h-40 w-40" />
+                        </div>
+                        <Field label="2. Enter the 6-digit code to verify:">
+                          <input
+                            type="text"
+                            required
+                            pattern="\d{6}"
+                            maxLength={6}
+                            value={tfaCode}
+                            onChange={(e) => setTfaCode(e.target.value)}
+                            placeholder="000000"
+                            className={inputClass}
+                          />
+                        </Field>
+                        
+                        <div className="flex items-center gap-3 pt-2">
+                          <button
+                            type="submit"
+                            disabled={tfaLoading || tfaCode.length !== 6}
+                            className="cursor-pointer rounded-lg bg-success px-4 py-2 text-sm font-semibold text-success-foreground transition hover:brightness-110 disabled:opacity-50"
+                          >
+                            Verify & Enable
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setTfaSetupUri(null); setTfaCode(""); }}
+                            className="cursor-pointer rounded-lg px-4 py-2 text-sm font-medium hover:bg-hover"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                    {tfaError && <p className="text-sm text-danger">{tfaError}</p>}
+                  </div>
+                )}
               </div>
             </section>
           )}

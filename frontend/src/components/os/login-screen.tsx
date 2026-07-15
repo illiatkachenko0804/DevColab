@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, Lock, Mail, User } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PasswordStrength } from "@/components/auth/password-strength";
 import { TrafficLights } from "@/components/os/traffic-lights";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -13,6 +13,8 @@ import {
   register as apiRegister,
   resendCode,
   verifyEmail,
+  fetchTwoFactorStatus,
+  loginVerifyTwoFactor,
 } from "@/lib/auth";
 import { evaluatePassword } from "@/lib/password";
 import { useOS } from "@/stores/os";
@@ -31,7 +33,7 @@ const inputClass =
   "h-10 flex-1 bg-transparent text-sm outline-none placeholder:text-faint";
 
 type Mode = "signin" | "create";
-type Step = "credentials" | "verify";
+type Step = "credentials" | "verify" | "2fa";
 
 export function LoginScreen() {
   const setSession = useOS((s) => s.setSession);
@@ -44,6 +46,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [code, setCode] = useState("");
+  const [tfaCode, setTfaCode] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,12 +68,41 @@ export function LoginScreen() {
     setDetails([]);
   };
 
+  // Check if we arrived from GitHub OAuth but need 2FA
+  useEffect(() => {
+    fetchTwoFactorStatus().then((res) => {
+      if (res.requiresTwoFactor) {
+        setStep("2fa");
+        setInfo("Please verify your identity with your authenticator app.");
+      }
+    }).catch(() => {});
+  }, []);
+
   const onSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     reset();
     setLoading(true);
     try {
-      setSession(await apiLogin(email.trim(), password));
+      const res = await apiLogin(email.trim(), password);
+      if ("requiresTwoFactor" in res && res.requiresTwoFactor) {
+        setStep("2fa");
+        setInfo("Please verify your identity with your authenticator app.");
+      } else {
+        setSession(res as any);
+      }
+    } catch (err) {
+      fail(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onVerify2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    reset();
+    setLoading(true);
+    try {
+      setSession(await loginVerifyTwoFactor(tfaCode.trim()));
     } catch (err) {
       fail(err);
     } finally {
@@ -135,7 +167,7 @@ export function LoginScreen() {
     setInfo(null);
   };
 
-  const title = step === "verify" ? "Verify email" : mode === "signin" ? "Sign in" : "Create account";
+  const title = step === "verify" ? "Verify email" : step === "2fa" ? "Two-Factor Auth" : mode === "signin" ? "Sign in" : "Create account";
 
   return (
     <div
@@ -172,9 +204,11 @@ export function LoginScreen() {
             <p className="mt-1 text-sm text-muted">
               {step === "verify"
                 ? "Enter the code we sent you"
-                : mode === "signin"
-                  ? "Sign in to your workspace"
-                  : "Create your account"}
+                : step === "2fa"
+                  ? "Enter your authenticator code"
+                  : mode === "signin"
+                    ? "Sign in to your workspace"
+                    : "Create your account"}
             </p>
           </div>
 
@@ -225,6 +259,35 @@ export function LoginScreen() {
                   className="flex cursor-pointer items-center gap-1 text-muted hover:text-foreground"
                 >
                   <ArrowLeft className="h-3 w-3" /> Use a different email
+                </button>
+              </div>
+            </form>
+          ) : step === "2fa" ? (
+            <form onSubmit={onVerify2FA} className="space-y-4">
+              {info && <p className="text-sm text-muted">{info}</p>}
+              <input
+                inputMode="numeric"
+                maxLength={6}
+                value={tfaCode}
+                onChange={(e) => setTfaCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                aria-label="Authenticator code"
+                className="w-full rounded-lg border border-separator bg-surface py-3 text-center font-mono text-2xl tracking-[0.5em] outline-none focus:border-accent"
+              />
+              <button
+                type="submit"
+                disabled={loading || tfaCode.length !== 6}
+                className="h-10 w-full cursor-pointer rounded-lg bg-accent text-sm font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
+              >
+                {loading ? "Verifying…" : "Verify & continue"}
+              </button>
+              <div className="flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  onClick={() => { setStep("credentials"); reset(); setTfaCode(""); }}
+                  className="flex cursor-pointer items-center gap-1 text-muted hover:text-foreground"
+                >
+                  <ArrowLeft className="h-3 w-3" /> Back to login
                 </button>
               </div>
             </form>

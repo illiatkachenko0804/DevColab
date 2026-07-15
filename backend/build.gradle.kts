@@ -41,6 +41,9 @@ dependencies {
 	// Rate limiting
 	implementation("com.bucket4j:bucket4j-core:8.10.1")
 
+	// TOTP 2FA
+	implementation("dev.samstevens.totp:totp:1.7.1")
+
 	// DTO mapping
 	implementation("org.mapstruct:mapstruct:1.6.3")
 	annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")

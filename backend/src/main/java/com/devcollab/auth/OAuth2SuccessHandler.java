@@ -73,10 +73,16 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         user.setEmailVerified(true); // GitHub identities are pre-verified
         user = users.save(user);
 
-        response.addHeader(HttpHeaders.SET_COOKIE,
-                cookies.access(jwt.issueAccess(user.getId(), user.getEmail()), jwt.accessTtlSeconds()).toString());
-        response.addHeader(HttpHeaders.SET_COOKIE,
-                cookies.refresh(jwt.issueRefresh(user.getId()), jwt.refreshTtlSeconds()).toString());
+        if (user.isTwoFactorEnabled()) {
+            // Issue a temporary 2FA token instead of access/refresh tokens
+            response.addHeader(HttpHeaders.SET_COOKIE,
+                    cookies.twoFactor(jwt.issueTwoFactorToken(user.getId(), user.getEmail()), 300).toString());
+        } else {
+            response.addHeader(HttpHeaders.SET_COOKIE,
+                    cookies.access(jwt.issueAccess(user.getId(), user.getEmail()), jwt.accessTtlSeconds()).toString());
+            response.addHeader(HttpHeaders.SET_COOKIE,
+                    cookies.refresh(jwt.issueRefresh(user.getId()), jwt.refreshTtlSeconds()).toString());
+        }
 
         response.sendRedirect(frontendUrl);
     }

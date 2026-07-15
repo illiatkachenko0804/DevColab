@@ -8,12 +8,18 @@ export interface AuthUser {
   avatarUrl: string | null;
   emailVerified: boolean;
   hasPassword: boolean;
+  twoFactorEnabled: boolean;
 }
 
 export interface RegisterResult {
   message: string;
   emailDelivered: boolean;
   devCode?: string;
+}
+
+export interface LoginResult {
+  requiresTwoFactor: true;
+  email: string;
 }
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -35,8 +41,24 @@ export function verifyEmail(email: string, code: string): Promise<AuthUser> {
   return api("/api/auth/verify-email", { method: "POST", body: JSON.stringify({ email, code }) });
 }
 
-export function login(email: string, password: string): Promise<AuthUser> {
+export function login(email: string, password: string): Promise<AuthUser | LoginResult> {
   return api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export function setupTwoFactor(): Promise<{ secret: string; qrCodeUri: string }> {
+  return api("/api/auth/2fa/setup", { method: "POST" });
+}
+
+export function enableTwoFactor(code: string): Promise<void> {
+  return api("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
+}
+
+export function disableTwoFactor(): Promise<void> {
+  return api("/api/auth/2fa/disable", { method: "POST" });
+}
+
+export function loginVerifyTwoFactor(code: string): Promise<AuthUser> {
+  return api("/api/auth/2fa/login-verify", { method: "POST", body: JSON.stringify({ code }) });
 }
 
 export function logout(): Promise<void> {
@@ -57,6 +79,10 @@ export function setPassword(oldPassword?: string, newPassword?: string): Promise
 
 export function fetchMe(): Promise<AuthUser> {
   return api("/api/auth/me");
+}
+
+export function fetchTwoFactorStatus(): Promise<{ requiresTwoFactor: boolean }> {
+  return api("/api/auth/2fa/status");
 }
 
 export const githubAuthUrl = `${BASE}/oauth2/authorization/github`;

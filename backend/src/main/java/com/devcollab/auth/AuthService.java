@@ -89,7 +89,7 @@ public class AuthService {
         return verification.createAndSend(normalized);
     }
 
-    public User login(LoginRequest req) {
+    public com.devcollab.auth.dto.LoginResult login(LoginRequest req) {
         User user = users.findByEmailIgnoreCase(normalize(req.email()))
                 .orElseThrow(() -> ApiException.unauthorized("Invalid email or password"));
         if (user.getPasswordHash() == null) {
@@ -101,7 +101,7 @@ public class AuthService {
         if (!user.isEmailVerified()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Please verify your email first");
         }
-        return user;
+        return new com.devcollab.auth.dto.LoginResult(user, user.isTwoFactorEnabled());
     }
 
     public User requireById(UUID id) {
@@ -160,6 +160,46 @@ public class AuthService {
         }
         
         user.setPasswordHash(encoder.encode(newPassword));
+        users.save(user);
+    }
+
+    @Transactional
+    public String setupTwoFactor(UUID userId) {
+        User user = requireById(userId);
+        if (user.isTwoFactorEnabled()) {
+            throw ApiException.badRequest("2FA is already enabled");
+        }
+        // Generate a new secret but don't enable yet. We save it so it can be verified.
+        // It's possible to just keep it in memory/session, but saving it temporarily is easier.
+        // Actually, if we don't save it, we'd have to return it to the client and trust the client to send it back.
+        // Better to save it. But if they never verify, it sits there. That's fine, twoFactorEnabled = false.
+        String secret = new TwoFactorService().generateSecret();
+        user.setTwoFactorSecret(secret);
+        users.save(user);
+        return secret;
+    }
+
+    @Transactional
+    public void enableTwoFactor(UUID userId, String code) {
+        User user = requireById(userId);
+        if (user.isTwoFactorEnabled()) {
+            throw ApiException.badRequest("2FA is already enabled");
+        }
+        if (user.getTwoFactorSecret() == null) {
+            throw ApiException.badRequest("2FA setup not initiated");
+        }
+        if (!new TwoFactorService().verifyCode(user.getTwoFactorSecret(), code)) {
+            throw ApiException.badRequest("Invalid 2FA code");
+        }
+        user.setTwoFactorEnabled(true);
+        users.save(user);
+    }
+
+    @Transactional
+    public void disableTwoFactor(UUID userId) {
+        User user = requireById(userId);
+        user.setTwoFactorEnabled(false);
+        user.setTwoFactorSecret(null);
         users.save(user);
     }
 

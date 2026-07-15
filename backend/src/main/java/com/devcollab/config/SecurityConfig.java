@@ -46,6 +46,8 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
+                                "/api/auth/2fa/status",
+                                "/api/auth/2fa/login-verify",
                                 "/oauth2/**", "/login/**",
                                 "/ws/**")
                         .permitAll()

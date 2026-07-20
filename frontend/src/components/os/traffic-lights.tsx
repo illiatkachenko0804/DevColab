@@ -23,8 +23,8 @@ function MinusGlyph() {
 function ArrowsOutGlyph() {
   return (
     <svg viewBox="0 0 10 10" className="h-[9px] w-[9px]" fill="currentColor">
-      <path d="M1 1 L4.4 1 L1 4.4 Z" />
-      <path d="M9 9 L5.6 9 L9 5.6 Z" />
+      <path d="M2 2 L5.2 2 L2 5.2 Z" />
+      <path d="M8 8 L4.8 8 L8 4.8 Z" />
     </svg>
   );
 }

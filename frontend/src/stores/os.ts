@@ -16,7 +16,7 @@ export interface WinState {
   maximized: boolean;
 }
 
-const DEFAULT_SIZE: Record<AppId, { w: number; h: number }> = {
+export const DEFAULT_SIZE: Record<AppId, { w: number; h: number }> = {
   chat: { w: 880, h: 600 },
   projects: { w: 920, h: 600 },
   snippets: { w: 840, h: 560 },

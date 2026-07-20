@@ -3,7 +3,7 @@
 import { motion, useDragControls, useMotionValue } from "framer-motion";
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { cn } from "@/lib/utils";
-import { MIN_H, MIN_W, type WinState } from "@/stores/os";
+import { DEFAULT_SIZE, type WinState } from "@/stores/os";
 import { TrafficLights } from "./traffic-lights";
 
 interface Props {
@@ -49,7 +49,9 @@ export function WindowFrame({
     const move = (ev: PointerEvent) => {
       const w = dir.includes("e") ? startW + (ev.clientX - startX) : startW;
       const h = dir.includes("s") ? startH + (ev.clientY - startY) : startH;
-      onResize(Math.max(MIN_W, w), Math.max(MIN_H, h));
+      const minW = DEFAULT_SIZE[win.app]?.w ?? 380;
+      const minH = DEFAULT_SIZE[win.app]?.h ?? 320;
+      onResize(Math.max(minW, w), Math.max(minH, h));
     };
     const up = () => {
       window.removeEventListener("pointermove", move);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Folder, Lock, Globe } from "lucide-react";
+import { Plus, X, Folder, Lock, Globe, Code2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createSnippet } from "@/lib/snippets";
 import { markNotificationReadByLink } from "@/lib/notifications";
@@ -89,8 +89,8 @@ export function SnippetsApp() {
           />
         ) : (
           <div className="flex h-full items-center justify-center text-muted-foreground flex-col gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-surface border border-separator flex items-center justify-center text-4xl shadow-sm">
-              ✨
+            <div className="h-16 w-16 rounded-2xl bg-surface border border-separator flex items-center justify-center shadow-sm">
+              <Code2 className="w-8 h-8 opacity-50" />
             </div>
             <p>Select a snippet from the sidebar or create a new one.</p>
           </div>

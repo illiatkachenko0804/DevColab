@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, FolderKanban, ImageIcon, Monitor, Moon, Paintbrush, Pencil, Plus, Shield, Sun, Trash2, User, X } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { EditableAvatar } from "@/components/ui/editable-avatar";
 import { PasswordStrength } from "@/components/auth/password-strength";
@@ -527,6 +527,16 @@ function ProjectSettingsForm({
 
 export function SettingsApp() {
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]["id"]>("appearance");
+  const pendingSettingTab = useOS((s) => s.pendingSettingTab);
+  const setPendingSettingTab = useOS((s) => s.setPendingSettingTab);
+  
+  useEffect(() => {
+    if (pendingSettingTab) {
+      setCat(pendingSettingTab as any);
+      setPendingSettingTab(null);
+    }
+  }, [pendingSettingTab, setPendingSettingTab]);
+
   const { theme, setTheme } = useTheme();
   const accent = useOS((s) => s.accent);
   const setAccent = useOS((s) => s.setAccent);

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileText, Image as ImageIcon, Trash2, Upload, X, FolderPlus, Folder, ArrowLeft, Lock, Globe } from "lucide-react";
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import {
   deleteFile,
@@ -26,6 +26,8 @@ export function FilesApp() {
   const me = useOS((s) => s.user);
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
+  const pendingFile = useOS((s) => s.pendingFile);
+  const setPendingFile = useOS((s) => s.setPendingFile);
   
   const [preview, setPreview] = useState<ProjectFile | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -47,6 +49,21 @@ export function FilesApp() {
       files: inCurrent.filter(f => !f.isFolder).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     };
   }, [allFiles, currentFolderId]);
+
+  useEffect(() => {
+    if (pendingFile && allFiles.length > 0) {
+      const file = allFiles.find((f) => f.id === pendingFile);
+      if (file) {
+        if (file.isFolder) {
+          setCurrentFolderId(file.id);
+        } else {
+          setCurrentFolderId(file.parentId);
+          setPreview(file);
+        }
+      }
+      setPendingFile(null);
+    }
+  }, [pendingFile, allFiles, setPendingFile]);
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteFile(id),

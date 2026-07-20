@@ -43,6 +43,8 @@ interface OSState {
   pendingChat: string | null;
   pendingTask: string | null;
   pendingSnippet: string | null;
+  pendingFile: string | null;
+  pendingSettingTab: string | null;
 
   setOnline: (ids: string[]) => void;
   setSession: (user: AuthUser) => void;
@@ -68,6 +70,8 @@ interface OSState {
   setPendingChat: (channelId: string | null) => void;
   setPendingTask: (taskId: string | null) => void;
   setPendingSnippet: (snippetId: string | null) => void;
+  setPendingFile: (fileId: string | null) => void;
+  setPendingSettingTab: (tabId: string | null) => void;
 }
 
 function spawn(app: AppId, index: number, z: number): WinState {
@@ -99,6 +103,8 @@ export const useOS = create<OSState>((set) => ({
   pendingChat: null,
   pendingTask: null,
   pendingSnippet: null,
+  pendingFile: null,
+  pendingSettingTab: null,
 
   setOnline: (ids) => set({ online: ids }),
 
@@ -222,6 +228,8 @@ export const useOS = create<OSState>((set) => ({
   setPendingChat: (id) => set({ pendingChat: id }),
   setPendingTask: (id) => set({ pendingTask: id }),
   setPendingSnippet: (id) => set({ pendingSnippet: id }),
+  setPendingFile: (id) => set({ pendingFile: id }),
+  setPendingSettingTab: (id) => set({ pendingSettingTab: id }),
 }));
 
 /** The focused (top-most, non-minimized) app, or null if the desktop is showing. */

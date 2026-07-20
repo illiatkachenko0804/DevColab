@@ -34,9 +34,21 @@ public class FileController {
             @PathVariable UUID workspaceId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(name = "hidden", required = false, defaultValue = "false") boolean hidden,
+            @RequestParam(name = "parentId", required = false) UUID parentId,
+            @RequestParam(name = "accessType", required = false, defaultValue = "PUBLIC") String accessType,
+            @RequestParam(name = "allowedUsers", required = false) List<UUID> allowedUsers,
             Authentication auth) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(files.upload(workspaceId, CurrentUser.id(auth), file, hidden));
+                .body(files.upload(workspaceId, CurrentUser.id(auth), file, hidden, parentId, accessType, allowedUsers));
+    }
+
+    @PostMapping("/api/workspaces/{workspaceId}/folders")
+    public ResponseEntity<FileResponse> createFolder(
+            @PathVariable UUID workspaceId,
+            @org.springframework.web.bind.annotation.RequestBody com.devcollab.file.dto.CreateFolderRequest req,
+            Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(files.createFolder(workspaceId, CurrentUser.id(auth), req));
     }
 
     @GetMapping("/api/workspaces/{workspaceId}/files")

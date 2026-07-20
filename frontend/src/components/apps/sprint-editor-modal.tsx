@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { createSprint, updateSprint, type Sprint } from "@/lib/sprints";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
 export function SprintEditorModal({ ws, sprint, onClose }: { ws: string; sprint: Sprint | null; onClose: () => void }) {
   const qc = useQueryClient();
@@ -52,11 +53,13 @@ export function SprintEditorModal({ ws, sprint, onClose }: { ws: string; sprint:
 
           <div>
             <label className="mb-1 block text-sm font-medium text-foreground">Goal</label>
-            <textarea 
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              className="w-full min-h-[80px] rounded-lg border border-separator bg-surface px-3 py-2 text-sm outline-none focus:border-accent resize-y" 
+            <RichTextEditor 
+              initialValue={goal}
+              onSave={(val) => setGoal(val)}
+              onCancel={undefined}
               placeholder="What do we want to achieve?"
+              minHeight="80px"
+              saveLabel="Done"
             />
           </div>
 

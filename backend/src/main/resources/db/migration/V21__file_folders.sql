@@ -1,0 +1,9 @@
+ALTER TABLE files ADD COLUMN parent_id UUID REFERENCES files(id) ON DELETE CASCADE;
+ALTER TABLE files ADD COLUMN is_folder BOOLEAN DEFAULT false;
+ALTER TABLE files ADD COLUMN access_type VARCHAR(20) DEFAULT 'PUBLIC';
+
+CREATE TABLE file_members (
+    file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (file_id, user_id)
+);

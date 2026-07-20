@@ -9,6 +9,9 @@ public record FileResponse(
         String contentType,
         long size,
         String createdAt,
+        boolean isFolder,
+        String parentId,
+        String accessType,
         Uploader uploader) {
 
     public record Uploader(String id, String displayName, String devTag) {}
@@ -17,6 +20,9 @@ public record FileResponse(
         return new FileResponse(
                 f.getId().toString(), f.getName(), f.getContentType(), f.getSizeBytes(),
                 f.getCreatedAt().toString(),
+                f.isFolder(),
+                f.getParentId() != null ? f.getParentId().toString() : null,
+                f.getAccessType(),
                 uploader == null ? null
                         : new Uploader(uploader.getId().toString(), uploader.getDisplayName(), uploader.getDevTag()));
     }

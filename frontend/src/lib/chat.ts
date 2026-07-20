@@ -33,10 +33,10 @@ export function listChannels(ws: string): Promise<Channel[]> {
   return api(`/api/workspaces/${ws}/channels`);
 }
 
-export function createChannel(ws: string, name: string): Promise<Channel> {
+export function createChannel(ws: string, body: { name: string; description?: string; imageUrl?: string }): Promise<Channel> {
   return api(`/api/workspaces/${ws}/channels`, {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(body),
   });
 }
 

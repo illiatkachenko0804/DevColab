@@ -17,6 +17,8 @@ import {
   Snippet
 } from "@/lib/snippets";
 import { usePermissions } from "@/lib/workspaces";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { listMembers } from "@/lib/members";
 
 interface DetailViewProps {
   id: string;
@@ -38,6 +40,9 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
   const [editCode, setEditCode] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const membersQuery = useQuery({ queryKey: ["members", ws], queryFn: () => listMembers(ws), enabled: !!ws });
+  const members = membersQuery.data ?? [];
 
   const permissions = usePermissions();
   const canComment = permissions.comment === true;
@@ -117,11 +122,14 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
         </div>
 
         <div className="flex-1 flex flex-col p-4 gap-4 max-w-5xl w-full mx-auto">
-          <textarea 
-            value={editDesc} 
-            onChange={e => setEditDesc(e.target.value)}
+          <RichTextEditor 
+            initialValue={editDesc}
+            onSave={(val) => setEditDesc(val)}
+            onCancel={undefined}
             placeholder="Add a markdown description..."
-            className="w-full h-24 bg-surface border border-separator rounded-md p-3 text-sm outline-none focus:border-accent resize-y"
+            minHeight="96px"
+            members={members}
+            saveLabel="Done"
           />
           <div className="flex-1 min-h-[400px]">
             <CodeEditor value={editCode} onChange={setEditCode} language={editLang} />
@@ -158,7 +166,7 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
             </button>
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            {s.author && <Avatar name={s.author.displayName} size={24} />}
+            {s.author && <Avatar name={s.author.displayName} url={s.author.avatarUrl} size={24} />}
             <span className="font-medium text-foreground/80">{s.author?.displayName}</span>
             <span>·</span>
             <span>Created {relativeTime(s.createdAt)}</span>
@@ -239,7 +247,7 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
           <div className="space-y-4 mb-6">
             {detail.comments.map((c) => (
               <div key={c.id} className="flex gap-4 p-4 rounded-lg border border-separator bg-surface/30">
-                {c.author && <Avatar name={c.author.displayName} size={36} />}
+                {c.author && <Avatar name={c.author.displayName} url={c.author.avatarUrl} size={36} />}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-semibold text-sm">{c.author?.displayName}</span>
@@ -252,27 +260,24 @@ export function DetailView({ id, ws, meId, onDeleted, onCommented, onForked }: D
             {detail.comments.length === 0 && <p className="text-sm text-muted-foreground italic">No comments yet. Start the discussion!</p>}
           </div>
           {canComment ? (
-            <form onSubmit={(e) => { e.preventDefault(); if (comment.trim()) addComment.mutate(comment.trim()); }} className="flex gap-3 items-start">
-              {detail.snippet.author && <Avatar name={detail.snippet.author.displayName} size={36} className="mt-1" />}
+            <div className="flex gap-3 items-start">
+              {detail.snippet.author && <Avatar name={detail.snippet.author.displayName} url={detail.snippet.author.avatarUrl} size={36} className="mt-1" />}
               <div className="flex-1 space-y-3">
-                <textarea 
-                  value={comment} 
-                  onChange={(e) => setComment(e.target.value)} 
-                  placeholder="Add a comment…" 
-                  rows={3}
-                  className="w-full rounded-lg border border-separator bg-surface px-4 py-3 text-sm outline-none focus:border-accent resize-y" 
+                <RichTextEditor 
+                  initialValue=""
+                  onSave={(val) => {
+                    if (val.trim()) {
+                      addComment.mutate(val.trim());
+                    }
+                  }}
+                  onCancel={undefined}
+                  placeholder="Add a comment…"
+                  minHeight="60px"
+                  members={members}
+                  saveLabel="Post Comment"
                 />
-                <div className="flex justify-end">
-                  <button 
-                    type="submit" 
-                    disabled={!comment.trim() || addComment.isPending} 
-                    className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
-                  >
-                    Post Comment
-                  </button>
-                </div>
               </div>
-            </form>
+            </div>
           ) : (
             <div className="rounded-lg border border-separator bg-surface/50 p-4 text-sm text-muted italic text-center">
               You do not have permission to comment on snippets.

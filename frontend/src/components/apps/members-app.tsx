@@ -7,6 +7,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { authErrorMessage } from "@/lib/auth";
 import { inviteMember, listMembers, removeMember, updateMemberRole } from "@/lib/members";
 import { markNotificationReadByApp } from "@/lib/notifications";
+import { Select } from "@/components/ui/select";
 import { getProjectSettings, viewerPermissions, type ProjectRole } from "@/lib/project-settings";
 import { cn } from "@/lib/utils";
 import { useOS } from "@/stores/os";
@@ -139,26 +140,25 @@ export function MembersApp() {
               <Avatar url={u.avatarUrl} name={u.displayName} size={44} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{u.displayName}</p>
-                <p className="truncate text-xs text-muted">@{u.devTag}</p>
+                {u.devTag && <p className="truncate text-xs text-muted">@{u.devTag}</p>}
               </div>
-              {canManageRoles && (u.role !== "ADMIN" || currentRole === "ADMIN") ? (
-                <select
+              {u.id.startsWith("pending-") ? (
+                <span className="rounded-full bg-hover px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  PENDING
+                </span>
+              ) : canManageRoles && (u.role !== "ADMIN" || currentRole === "ADMIN") ? (
+                <Select
                   value={u.role}
-                  onChange={(e) => changeRole.mutate({ userId: u.id, role: e.target.value })}
+                  onChange={(val) => changeRole.mutate({ userId: u.id, role: val })}
                   disabled={changeRole.isPending}
-                  className={cn(
-                    "cursor-pointer appearance-none bg-transparent rounded-full border border-transparent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide outline-none hover:border-separator text-center text-center-last",
-                    u.role === "ADMIN" ? "bg-accent/15 text-accent" : "bg-hover text-muted",
-                  )}
-                >
-                  {settingsQuery.data?.roles
-                    .filter((r) => currentRole === "ADMIN" || roleValue(r) !== "ADMIN")
-                    .map((r) => (
-                      <option key={r.id} value={roleValue(r)}>
-                        {r.name}
-                      </option>
-                    ))}
-                </select>
+                  variant="pill"
+                  className={u.role === "ADMIN" ? "bg-accent/15 text-accent" : "bg-hover text-muted"}
+                  options={
+                    settingsQuery.data?.roles
+                      .filter((r) => currentRole === "ADMIN" || roleValue(r) !== "ADMIN")
+                      .map((r) => ({ label: r.name, value: roleValue(r) })) ?? []
+                  }
+                />
               ) : (
                 <span
                   className={cn(

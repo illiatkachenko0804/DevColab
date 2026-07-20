@@ -42,7 +42,7 @@ public class ChannelController {
             @Valid @RequestBody CreateChannelRequest req,
             Authentication auth) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(channels.createText(workspaceId, CurrentUser.id(auth), req.name()));
+                .body(channels.createText(workspaceId, CurrentUser.id(auth), req.name(), req.description(), req.imageUrl()));
     }
 
     @PostMapping("/dms")

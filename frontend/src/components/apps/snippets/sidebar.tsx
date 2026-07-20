@@ -169,7 +169,7 @@ export function Sidebar({
                   {s.pinned && <Pin className="h-3 w-3 text-accent shrink-0" />}
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted">
-                  {s.author && <Avatar name={s.author.displayName} size={16} />}
+                  {s.author && <Avatar name={s.author.displayName} url={s.author.avatarUrl} size={16} />}
                   <span className="truncate">{s.author?.displayName.split(" ")[0]}</span>
                   <span>· {relativeTime(s.createdAt)}</span>
                   

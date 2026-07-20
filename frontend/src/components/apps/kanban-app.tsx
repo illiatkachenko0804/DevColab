@@ -42,6 +42,8 @@ import { usePermissions } from "@/lib/workspaces";
 import { cn } from "@/lib/utils";
 import { useOS } from "@/stores/os";
 import { TaskDetail } from "./task-detail";
+import { SprintEditorModal } from "./sprint-editor-modal";
+import { Select } from "@/components/ui/select";
 import { CreateTaskModal } from "./create-task-modal";
 import { BacklogView } from "./backlog-view";
 
@@ -297,17 +299,16 @@ export function KanbanApp() {
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted">Sprint:</span>
-            <select
+            <Select
               value={selectedSprintId}
-              onChange={(e) => setSelectedSprintId(e.target.value)}
-              className="cursor-pointer rounded-lg border border-transparent bg-sidebar px-2 py-1 text-sm font-medium outline-none hover:border-separator focus:border-accent transition"
-            >
-              <option value="ALL">All Sprints</option>
-              <option value="BACKLOG">Backlog (No Sprint)</option>
-              {sprints.map((s) => (
-                <option key={s.id} value={s.id}>{s.name} {s.status === "ACTIVE" ? "(Active)" : ""}</option>
-              ))}
-            </select>
+              onChange={setSelectedSprintId}
+              className="w-48 bg-sidebar rounded-md"
+              options={[
+                { label: "All Sprints", value: "ALL" },
+                { label: "Backlog (No Sprint)", value: "BACKLOG" },
+                ...sprints.map((s) => ({ label: `${s.name} ${s.status === "ACTIVE" ? "(Active)" : ""}`, value: s.id }))
+              ]}
+            />
           </div>
         </div>
 

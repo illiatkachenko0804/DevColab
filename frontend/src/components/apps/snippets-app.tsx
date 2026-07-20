@@ -5,6 +5,8 @@ import { Plus, X, Folder, Lock, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createSnippet } from "@/lib/snippets";
 import { markNotificationReadByLink } from "@/lib/notifications";
+import { listMembers } from "@/lib/members";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { subscribe } from "@/lib/ws";
 import { useOS } from "@/stores/os";
 import { Sidebar } from "./snippets/sidebar";
@@ -161,11 +163,13 @@ function NewSnippet({ ws, onClose, onCreated }: { ws: string; onClose: () => voi
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description (Markdown)</label>
-            <textarea 
-              value={description} 
-              onChange={(e) => setDescription(e.target.value)} 
-              placeholder="What does this snippet do? How do you use it?" 
-              className="w-full h-20 resize-y rounded-md border border-separator bg-surface p-3 text-sm outline-none focus:border-accent" 
+            <RichTextEditor 
+              initialValue={description}
+              onSave={(val) => setDescription(val)}
+              onCancel={undefined}
+              placeholder="What does this snippet do? How do you use it?"
+              minHeight="80px"
+              saveLabel="Done"
             />
           </div>
 

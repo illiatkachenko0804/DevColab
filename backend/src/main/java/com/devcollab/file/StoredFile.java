@@ -49,6 +49,15 @@ public class StoredFile {
     @Column(nullable = false)
     private boolean hidden = false;
 
+    @Column(name = "parent_id")
+    private UUID parentId;
+
+    @Column(name = "is_folder", nullable = false)
+    private boolean isFolder = false;
+
+    @Column(name = "access_type", nullable = false)
+    private String accessType = "PUBLIC";
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

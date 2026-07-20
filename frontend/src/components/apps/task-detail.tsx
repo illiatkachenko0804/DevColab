@@ -11,6 +11,8 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { Select } from "@/components/ui/select";
 import {
   updateTask as apiUpdateTask,
   deleteTask as apiDeleteTask,
@@ -61,136 +63,7 @@ export function PriorityIcon({ priority, className }: { priority: BoardTask["pri
   }
 }
 
-function RichTextEditor({ 
-  initialValue, 
-  onSave, 
-  onCancel, 
-  placeholder = "Add a description...",
-  minHeight = "100px",
-  members = [] 
-}: { 
-  initialValue: string; 
-  onSave: (val: string) => void; 
-  onCancel?: () => void; 
-  placeholder?: string;
-  minHeight?: string;
-  members?: { id: string; displayName: string; devTag: string; avatarUrl: string | null }[];
-}) {
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Underline,
-      Link.configure({ 
-        openOnClick: false,
-        protocols: ["http", "https", "mailto", "tel", "projects", "kanban", "mention"]
-      }),
-      Markdown,
-      Placeholder.configure({ placeholder }),
-    ],
-    content: initialValue,
-    onUpdate: ({ editor }) => {
-      const { from } = editor.state.selection;
-      const textBefore = editor.state.doc.textBetween(Math.max(0, from - 30), from, " ");
-      const match = /(?:^|\s)@([a-zA-Z0-9_]*)$/.exec(textBefore);
-      if (match) {
-        setMentionQuery(match[1]);
-      } else {
-        setMentionQuery(null);
-      }
-    },
-    editorProps: {
-      attributes: {
-        class: `focus:outline-none p-3 text-[15px] leading-relaxed [&_p.is-editor-empty:first-child::before]:text-faint [&_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_p.is-editor-empty:first-child::before]:pointer-events-none [&_p.is-editor-empty:first-child::before]:float-left [&_p.is-editor-empty:first-child::before]:h-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1 [&_strong]:font-bold [&_em]:italic [&_s]:line-through [&_u]:underline [&_a]:text-accent [&_a:hover]:underline`,
-        style: `min-height: ${minHeight};`
-      }
-    }
-  });
-
-  if (!editor) return null;
-
-  const mentionCandidates = mentionQuery !== null 
-    ? members.filter((m) => m.displayName.toLowerCase().includes(mentionQuery.toLowerCase()) || m.devTag.toLowerCase().includes(mentionQuery.toLowerCase())) 
-    : [];
-
-  return (
-    <div className="flex flex-col rounded-xl border border-separator focus-within:border-accent bg-surface shadow-sm overflow-visible min-h-0 relative transition">
-      <div className="flex items-center gap-1 border-b border-separator/50 p-1 bg-sidebar/50 flex-wrap shrink-0">
-        <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive("bold")}><Bold className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive("italic")}><Italic className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive("underline")}><UnderlineIcon className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} isActive={editor.isActive("strike")}><Strikethrough className="h-4 w-4" /></ToolbarButton>
-        <div className="w-px h-4 bg-separator/50 mx-1"></div>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive("bulletList")}><List className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive("orderedList")}><ListOrdered className="h-4 w-4" /></ToolbarButton>
-        <div className="w-px h-4 bg-separator/50 mx-1"></div>
-        <ToolbarButton onClick={() => {
-          const url = window.prompt("URL:");
-          if (url) editor.chain().focus().setLink({ href: url }).run();
-        }} isActive={editor.isActive("link")}><LinkIcon className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().unsetAllMarks().run()} isActive={false}><Eraser className="h-4 w-4" /></ToolbarButton>
-      </div>
-      
-      {mentionQuery !== null && mentionCandidates.length > 0 && (
-        <div className="absolute bottom-full left-3 mb-2 w-64 overflow-hidden rounded-xl border border-separator bg-surface shadow-[var(--shadow-pop)] z-20">
-          <div className="max-h-48 overflow-y-auto p-1 no-scrollbar">
-            {mentionCandidates.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-hover"
-                onClick={() => {
-                  const { from } = editor.state.selection;
-                  const textBefore = editor.state.doc.textBetween(Math.max(0, from - 30), from, " ");
-                  const match = /(?:^|\s)(@[a-zA-Z0-9_]*)$/.exec(textBefore);
-                  if (match) {
-                    const start = from - match[1].length;
-                    editor.view.dispatch(editor.view.state.tr.insertText(`@${c.devTag} `, start, from));
-                    editor.commands.focus();
-                    setMentionQuery(null);
-                  }
-                }}
-              >
-                <Avatar name={c.displayName} url={c.avatarUrl} size={24} />
-                <span className="font-medium truncate">{c.displayName}</span>
-                <span className="text-xs text-muted truncate">@{c.devTag}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <EditorContent 
-        editor={editor} 
-        className="flex-1 overflow-y-auto cursor-text bg-surface/50" 
-        onKeyDownCapture={(e) => {
-          if (e.key === "Enter" && !e.shiftKey && mentionQuery !== null && mentionCandidates.length > 0) {
-            e.preventDefault();
-            e.stopPropagation();
-            const { from } = editor.state.selection;
-            const textBefore = editor.state.doc.textBetween(Math.max(0, from - 30), from, " ");
-            const match = /(?:^|\s)(@[a-zA-Z0-9_]*)$/.exec(textBefore);
-            if (match) {
-              const start = from - match[1].length;
-              editor.view.dispatch(editor.view.state.tr.insertText(`@${mentionCandidates[0].devTag} `, start, from));
-              editor.commands.focus();
-              setMentionQuery(null);
-            }
-          }
-        }}
-      />
-      <div className="flex items-center justify-end gap-2 p-2 border-t border-separator/50 bg-surface">
-        {onCancel && <button onClick={onCancel} className="px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground">Cancel</button>}
-        <button onClick={() => {
-          const md = (editor.storage as unknown as { markdown: { getMarkdown: () => string } }).markdown.getMarkdown();
-          onSave(md);
-          if (!onCancel) editor.commands.setContent(""); // Reset if it's a persistent input
-        }} className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition hover:brightness-110">Save</button>
-      </div>
-    </div>
-  );
-}
 
 export function TaskDetail({
   ws,
@@ -445,13 +318,11 @@ export function TaskDetail({
               <h3 className="mb-4 text-sm font-medium text-foreground">Comments</h3>
               
               <div className="flex gap-3 mb-8">
-                <Avatar name="Me" size={32} />
+                <Avatar name={me?.displayName ?? "Me"} url={me?.avatarUrl} size={32} />
                 <div className="flex-1">
                   {canComment ? (
                     <RichTextEditor
                       initialValue=""
-                      placeholder="Add a comment..."
-                      minHeight="60px"
                       onSave={(val) => {
                         if (val.trim()) {
                           createComment(task.id, val.trim()).then(() => {
@@ -460,7 +331,10 @@ export function TaskDetail({
                           });
                         }
                       }}
-                      members={membersQuery.data}
+                      placeholder="Add a comment..."
+                      members={members}
+                      saveLabel="Send"
+                      minHeight="60px"
                     />
                   ) : (
                     <div className="rounded-xl border border-separator bg-surface/50 p-3 text-sm text-muted italic">
@@ -544,31 +418,43 @@ export function TaskDetail({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Assignee</label>
-                <select value={assigneeId} onChange={(e) => { setAssigneeId(e.target.value); setTimeout(() => save.mutate(), 0); }} className="w-full cursor-pointer rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm font-medium outline-none hover:border-accent">
-                  <option value="">Unassigned</option>
-                  {members.map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
-                </select>
+                <label className="mb-2 block text-xs font-semibold text-muted uppercase tracking-wider">Assignee</label>
+                <Select
+                  value={assigneeId}
+                  onChange={(val) => { setAssigneeId(val); setTimeout(() => save.mutate(), 0); }}
+                  options={[
+                    { label: "Unassigned", value: "" },
+                    ...members.map(m => ({ label: m.displayName, value: m.id }))
+                  ]}
+                />
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Type</label>
-                <select value={type} onChange={(e) => { setType(e.target.value as BoardTask["type"]); setTimeout(() => save.mutate(), 0); }} className="w-full cursor-pointer rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm font-medium outline-none hover:border-accent">
-                  <option value="TASK">Task</option>
-                  <option value="BUG">Bug</option>
-                  <option value="STORY">Story</option>
-                  <option value="EPIC">Epic</option>
-                </select>
+                <label className="mb-2 block text-xs font-semibold text-muted uppercase tracking-wider">Type</label>
+                <Select
+                  value={type}
+                  onChange={(val) => { setType(val as BoardTask["type"]); setTimeout(() => save.mutate(), 0); }}
+                  options={[
+                    { label: "Bug", value: "BUG" },
+                    { label: "Story", value: "STORY" },
+                    { label: "Epic", value: "EPIC" },
+                    { label: "Task", value: "TASK" }
+                  ]}
+                />
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Priority</label>
-                <select value={priority} onChange={(e) => { setPriority(e.target.value as BoardTask["priority"]); setTimeout(() => save.mutate(), 0); }} className="w-full cursor-pointer rounded-lg border border-separator bg-surface px-3 py-1.5 text-sm font-medium outline-none hover:border-accent">
-                  <option value="URGENT">Urgent</option>
-                  <option value="HIGH">High</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="LOW">Low</option>
-                </select>
+                <label className="mb-2 block text-xs font-semibold text-muted uppercase tracking-wider">Priority</label>
+                <Select
+                  value={priority}
+                  onChange={(val) => { setPriority(val as BoardTask["priority"]); setTimeout(() => save.mutate(), 0); }}
+                  options={[
+                    { label: "Low", value: "LOW" },
+                    { label: "Medium", value: "MEDIUM" },
+                    { label: "High", value: "HIGH" },
+                    { label: "Urgent", value: "URGENT" }
+                  ]}
+                />
               </div>
 
               <div>

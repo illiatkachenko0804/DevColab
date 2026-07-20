@@ -58,12 +58,18 @@ public class MemberService {
     @Transactional(readOnly = true)
     public List<MemberResponse> list(UUID workspaceId, UUID requesterId) {
         guard.requireMember(workspaceId, requesterId);
-        return memberships.findByWorkspaceIdOrderByJoinedAtAsc(workspaceId).stream()
+        List<MemberResponse> members = new java.util.ArrayList<>(memberships.findByWorkspaceIdOrderByJoinedAtAsc(workspaceId).stream()
                 .map(m -> users.findById(m.getUserId())
                         .map(u -> MemberResponse.of(u, m.getRole()))
                         .orElse(null))
                 .filter(r -> r != null)
-                .toList();
+                .toList());
+
+        workspaceInvitations.findByWorkspaceIdOrderByCreatedAtAsc(workspaceId).forEach(inv -> {
+            members.add(new MemberResponse("pending-" + inv.getId(), inv.getEmail(), "pending", inv.getEmail(), null, inv.getRole()));
+        });
+        
+        return members;
     }
 
     /** Members matching a query (name / @tag / email), excluding the requester. For DM search. */
@@ -136,28 +142,38 @@ public class MemberService {
     }
 
     @Transactional
-    public void remove(UUID workspaceId, UUID requesterId, UUID targetId) {
+    public void remove(UUID workspaceId, UUID requesterId, String targetId) {
         guard.requirePermission(workspaceId, requesterId, "removeMembers");
-        if (requesterId.equals(targetId)) {
+        
+        if (targetId.startsWith("pending-")) {
+            UUID invId = UUID.fromString(targetId.substring("pending-".length()));
+            workspaceInvitations.deleteByIdAndWorkspaceId(invId, workspaceId);
+            broker.convertAndSend("/topic/workspace." + workspaceId + ".members",
+                    Map.of("type", "MEMBER_REMOVED", "userId", targetId));
+            return;
+        }
+
+        UUID targetUuid = UUID.fromString(targetId);
+        if (requesterId.equals(targetUuid)) {
             throw ApiException.badRequest("You cannot remove yourself");
         }
         Workspace workspace = workspaces.findById(workspaceId)
                 .orElseThrow(() -> ApiException.badRequest("Project not found"));
-        if (workspace.getOwnerId().equals(targetId)) {
+        if (workspace.getOwnerId().equals(targetUuid)) {
             throw ApiException.forbidden("Project owner cannot be removed");
         }
-        Membership membership = memberships.findByWorkspaceIdAndUserId(workspaceId, targetId)
+        Membership membership = memberships.findByWorkspaceIdAndUserId(workspaceId, targetUuid)
                 .orElseThrow(() -> ApiException.badRequest("Member not found"));
         if ("ADMIN".equalsIgnoreCase(membership.getRole())) {
             throw ApiException.forbidden("Users with the Admin role cannot be removed");
         }
         memberships.delete(membership);
         broker.convertAndSend("/topic/workspace." + workspaceId + ".members",
-                Map.of("type", "MEMBER_REMOVED", "userId", targetId.toString()));
+                Map.of("type", "MEMBER_REMOVED", "userId", targetUuid.toString()));
 
         User author = users.findById(requesterId).orElse(null);
         String authorName = author != null ? author.getDisplayName() : "Someone";
-        notifications.create(targetId, workspaceId, "members", "project_removed",
+        notifications.create(targetUuid, workspaceId, "members", "project_removed",
                 Map.of("title", authorName + " removed you from " + workspace.getName(),
                         "linkType", "project", "linkId", workspaceId.toString()));
     }

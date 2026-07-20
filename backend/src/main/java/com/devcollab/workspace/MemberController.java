@@ -58,7 +58,7 @@ public class MemberController {
     @DeleteMapping("/{userId}")
     public ResponseEntity<Void> remove(
             @PathVariable UUID workspaceId,
-            @PathVariable UUID userId,
+            @PathVariable String userId,
             Authentication auth) {
         members.remove(workspaceId, CurrentUser.id(auth), userId);
         return ResponseEntity.noContent().build();

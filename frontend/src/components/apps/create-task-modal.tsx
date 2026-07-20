@@ -4,6 +4,8 @@ import { useState } from "react";
 import { createTask as apiCreateTask, type BoardTask } from "@/lib/board";
 import { listMembers } from "@/lib/members";
 import { getSprints } from "@/lib/sprints";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { Select } from "@/components/ui/select";
 
 export function CreateTaskModal({ ws, columnId, initialSprintId, onClose, onCreated }: { ws: string; columnId: string; initialSprintId?: string; onClose: () => void; onCreated: (t: BoardTask) => void }) {
   const qc = useQueryClient();
@@ -57,49 +59,68 @@ export function CreateTaskModal({ ws, columnId, initialSprintId, onClose, onCrea
 
           <div>
             <label className="mb-1 block text-sm font-medium text-foreground">Description</label>
-            <textarea 
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full min-h-[80px] rounded-lg border border-separator bg-surface px-3 py-2 text-sm outline-none focus:border-accent resize-y" 
+            <RichTextEditor 
+              initialValue={description}
+              onSave={(val) => setDescription(val)}
+              onCancel={undefined}
               placeholder="Add details..."
+              minHeight="80px"
+              members={members}
+              saveLabel="Done"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value as any)} className="w-full rounded-lg border border-separator bg-surface px-3 py-2 text-sm outline-none focus:border-accent">
-                <option value="TASK">Task</option>
-                <option value="BUG">Bug</option>
-                <option value="STORY">Story</option>
-                <option value="EPIC">Epic</option>
-              </select>
+              <Select 
+                value={type} 
+                onChange={(val) => setType(val as any)}
+                options={[
+                  { label: "Task", value: "TASK" },
+                  { label: "Bug", value: "BUG" },
+                  { label: "Story", value: "STORY" },
+                  { label: "Epic", value: "EPIC" }
+                ]}
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Priority</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value as any)} className="w-full rounded-lg border border-separator bg-surface px-3 py-2 text-sm outline-none focus:border-accent">
-                <option value="URGENT">Urgent</option>
-                <option value="HIGH">High</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="LOW">Low</option>
-              </select>
+              <Select 
+                value={priority} 
+                onChange={(val) => setPriority(val as any)}
+                options={[
+                  { label: "Urgent", value: "URGENT" },
+                  { label: "High", value: "HIGH" },
+                  { label: "Medium", value: "MEDIUM" },
+                  { label: "Low", value: "LOW" }
+                ]}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Assignee</label>
-              <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className="w-full rounded-lg border border-separator bg-surface px-3 py-2 text-sm outline-none focus:border-accent">
-                <option value="">Unassigned</option>
-                {members.map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
-              </select>
+              <Select 
+                value={assigneeId} 
+                onChange={(val) => setAssigneeId(val)}
+                options={[
+                  { label: "Unassigned", value: "" },
+                  ...members.map((m) => ({ label: m.displayName, value: m.id }))
+                ]}
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Sprint</label>
-              <select value={sprintId} onChange={(e) => setSprintId(e.target.value)} className="w-full rounded-lg border border-separator bg-surface px-3 py-2 text-sm outline-none focus:border-accent">
-                <option value="">Backlog (No sprint)</option>
-                {sprints.map((s) => <option key={s.id} value={s.id}>{s.name} {s.status === "ACTIVE" ? "(Active)" : ""}</option>)}
-              </select>
+              <Select 
+                value={sprintId} 
+                onChange={(val) => setSprintId(val)}
+                options={[
+                  { label: "Backlog (No sprint)", value: "" },
+                  ...sprints.map((s) => ({ label: `${s.name} ${s.status === "ACTIVE" ? "(Active)" : ""}`, value: s.id }))
+                ]}
+              />
             </div>
           </div>
         </div>

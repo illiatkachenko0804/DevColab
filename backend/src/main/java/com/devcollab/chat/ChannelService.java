@@ -75,7 +75,7 @@ public class ChannelService {
     }
 
     @Transactional
-    public ChannelResponse createText(UUID workspaceId, UUID userId, String rawName) {
+    public ChannelResponse createText(UUID workspaceId, UUID userId, String rawName, String description, String imageUrl) {
         guard.requireMember(workspaceId, userId);
         String name = normalizeName(rawName);
         if (name.isEmpty()) throw ApiException.badRequest("Invalid channel name");
@@ -87,6 +87,8 @@ public class ChannelService {
         c.setName(name);
         c.setType("TEXT");
         c.setAdminId(userId);
+        c.setDescription(description);
+        c.setImageUrl(imageUrl);
         channels.save(c);
         addParticipant(c.getId(), userId);
         return ChannelResponse.text(c, 0);

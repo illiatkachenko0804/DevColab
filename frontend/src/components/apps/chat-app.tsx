@@ -15,8 +15,10 @@ import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
+import { ToolbarButton } from "@/components/ui/rich-text-editor";
 
 import { Avatar } from "@/components/ui/avatar";
+import { EditableAvatar } from "@/components/ui/editable-avatar";
 import {
   addChannelMember,
   createChannel,
@@ -219,7 +221,7 @@ export function ChatApp() {
   });
 
   const addChannel = useMutation({
-    mutationFn: (name: string) => createChannel(ws, name),
+    mutationFn: (name: string) => createChannel(ws, { name }),
     onSuccess: (ch) => { qc.invalidateQueries({ queryKey: ["channels", ws] }); setSelectedId(ch.id); setNewChannel(null); },
   });
 
@@ -242,10 +244,7 @@ export function ChatApp() {
           </div>
           {texts.map((c) => <ChannelRow key={c.id} channel={c} active={c.id === selectedId} onClick={() => setSelectedId(c.id)} />)}
           {newChannel !== null && (
-            <form onSubmit={(e) => { e.preventDefault(); if (newChannel.trim()) addChannel.mutate(newChannel.trim()); }} className="flex items-center gap-1 px-2 py-1">
-              <Hash className="h-4 w-4 text-faint" />
-              <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} placeholder="new-channel" className="w-full rounded border border-separator bg-surface px-1.5 py-1 text-sm outline-none focus:border-accent" />
-            </form>
+            <CreateChannelDialog ws={ws} onClose={() => setNewChannel(null)} onCreated={(ch) => { qc.invalidateQueries({ queryKey: ["channels", ws] }); setSelectedId(ch.id); setNewChannel(null); }} />
           )}
 
           <div className="mt-3 flex items-center justify-between px-2 py-1">
@@ -275,7 +274,6 @@ export function ChatApp() {
               )}
               <div className="flex flex-col min-w-0">
                 <span className="font-semibold truncate leading-tight">{selected.name}</span>
-                {selected.description && <span className="text-[11px] text-muted truncate leading-tight mt-0.5">{selected.description}</span>}
               </div>
               {selected.type === "DM" && selected.peerDevTag && <span className="text-sm text-muted ml-1">@{selected.peerDevTag}</span>}
               {selected.type === "TEXT" && (
@@ -329,7 +327,7 @@ export function ChatApp() {
                   
                   return (
                     <div key={m.id} className={cn("flex gap-3", grouped && "mt-[-8px]")}>
-                      <div className="w-9 shrink-0">{!grouped && <Avatar name={m.author.displayName} size={36} />}</div>
+                      <div className="w-9 shrink-0">{!grouped && <Avatar name={m.author.displayName} url={m.author.avatarUrl} size={36} />}</div>
                       <div className="min-w-0 flex-1">
                         {!grouped && (
                           <div className="flex items-baseline gap-2">
@@ -415,7 +413,7 @@ export function ChatApp() {
                         return (
                           <div key={m.id} className={cn("flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors group hover:bg-hover", !isOnline && "opacity-80")}>
                             <div className="relative">
-                              <Avatar name={m.displayName} size={28} />
+                              <Avatar name={m.displayName} url={m.avatarUrl} size={28} />
                               <span className={cn("absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-surface", isOnline ? "bg-success" : "bg-muted")}></span>
                             </div>
                             <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{m.displayName}</p><p className="truncate text-xs text-muted">@{m.devTag}</p></div>
@@ -525,16 +523,6 @@ function ChatEditorInput({ selected, inChannel, onSend }: { selected: Channel, i
 
   if (!editor) return null;
 
-  const ToolbarButton = ({ onClick, isActive, children }: { onClick: () => void, isActive: boolean, children: React.ReactNode }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn("p-1.5 rounded transition", isActive ? "bg-accent/20 text-accent" : "text-muted hover:text-foreground hover:bg-hover")}
-    >
-      {children}
-    </button>
-  );
-
   return (
     <div className="shrink-0 border-t border-separator p-3 relative max-h-[50%] flex flex-col">
       {mentionQuery !== null && mentionCandidates.length > 0 && (
@@ -557,7 +545,7 @@ function ChatEditorInput({ selected, inChannel, onSend }: { selected: Channel, i
                   }
                 }}
               >
-                {c.id === "everyone" ? <AtSign className="h-5 w-5 text-accent" /> : <Avatar name={c.displayName} size={20} />}
+                {c.id === "everyone" ? <AtSign className="h-5 w-5 text-accent" /> : <Avatar name={c.displayName} url={c.avatarUrl} size={20} />}
                 <span className="font-medium truncate">{c.displayName}</span>
                 <span className="text-xs text-muted truncate">@{c.devTag}</span>
               </button>
@@ -567,7 +555,7 @@ function ChatEditorInput({ selected, inChannel, onSend }: { selected: Channel, i
       )}
       
       <div className="flex flex-col rounded-xl border border-separator bg-surface focus-within:border-accent shadow-sm overflow-hidden flex-1 min-h-0 relative">
-        <div className="flex items-center gap-1 border-b border-separator/50 p-1 bg-sidebar/50 flex-wrap shrink-0">
+        <div className="flex items-center gap-1 border-b border-separator/50 p-1 bg-sidebar/50 flex-wrap shrink-0 rounded-t-[11px]">
           <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive("bold")}><Bold className="h-4 w-4" /></ToolbarButton>
           <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive("italic")}><Italic className="h-4 w-4" /></ToolbarButton>
           <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive("underline")}><UnderlineIcon className="h-4 w-4" /></ToolbarButton>
@@ -637,7 +625,7 @@ function TypingDots() {
 function ChannelRow({ channel, active, onClick }: { channel: Channel; active: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", active ? "bg-accent text-accent-foreground" : "text-foreground/80 hover:bg-hover")}>
-      {channel.type === "DM" ? <Avatar name={channel.name} size={18} /> : (
+      {channel.type === "DM" ? <Avatar name={channel.name} url={channel.imageUrl} size={18} /> : (
         channel.imageUrl ? <img src={channel.imageUrl} alt="" className="h-4 w-4 rounded opacity-80 object-cover shrink-0" /> : <Hash className="h-4 w-4 opacity-70 shrink-0" />
       )}
       <span className={cn("flex-1 truncate text-left", channel.unread > 0 && !active && "font-semibold")}>{channel.name}</span>
@@ -665,7 +653,7 @@ function DmSearch({ ws, onClose, onPick }: { ws: string; onClose: () => void; on
         {members.length === 0 && <p className="px-2 py-3 text-center text-sm text-muted">No members found.</p>}
         {members.map((m) => (
           <button key={m.id} type="button" onClick={() => onPick(m.id)} className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-hover">
-            <Avatar name={m.displayName} size={28} />
+            <Avatar name={m.displayName} url={m.avatarUrl} size={28} />
             <div className="min-w-0"><p className="truncate text-sm font-medium">{m.displayName}</p><p className="truncate text-xs text-muted">@{m.devTag}</p></div>
           </button>
         ))}
@@ -700,7 +688,7 @@ function AddPeople({ ws, channelId, onClose }: { ws: string; channelId: string; 
         {candidates.length === 0 && <p className="px-2 py-3 text-center text-sm text-muted">Everyone matching is already in.</p>}
         {candidates.map((m) => (
           <div key={m.id} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
-            <Avatar name={m.displayName} size={28} />
+            <Avatar name={m.displayName} url={m.avatarUrl} size={28} />
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{m.displayName}</p><p className="truncate text-xs text-muted">@{m.devTag}</p></div>
             <button type="button" onClick={() => add.mutate(m.id)} disabled={add.isPending} className="cursor-pointer rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground transition hover:brightness-110 disabled:opacity-50">Add</button>
           </div>
@@ -713,70 +701,77 @@ function AddPeople({ ws, channelId, onClose }: { ws: string; channelId: string; 
 function EditChannelDialog({ ws, channel, onClose }: { ws: string; channel: Channel; onClose: () => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState(channel.name);
-  const [desc, setDesc] = useState(channel.description || "");
-  const [img, setImg] = useState(channel.imageUrl || "");
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [img, setImg] = useState<string | null>(channel.imageUrl || null);
 
   const update = useMutation({
-    mutationFn: () => updateChannel(ws, channel.id, { name, description: desc, imageUrl: img }),
+    mutationFn: () => updateChannel(ws, channel.id, { name, imageUrl: img || undefined, description: undefined }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["channels", ws] }); onClose(); }
   });
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setIsUploading(true);
-      const uploaded = await uploadFile(ws, file, true, true);
-      setImg(fileUrl(uploaded.id));
-    } catch (err) {
-      console.error("Failed to upload image", err);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
   return (
-    <div className="absolute inset-x-0 top-0 z-20 border-b border-separator bg-surface p-4 shadow-[var(--shadow-card)]">
-      <div className="mb-4 flex items-center justify-between">
-        <span className="text-sm font-semibold flex items-center gap-2"><Settings className="w-4 h-4" /> Edit Channel</span>
-        <button type="button" aria-label="Close" onClick={onClose} className="cursor-pointer text-faint hover:text-foreground"><X className="h-4 w-4" /></button>
-      </div>
-      <div className="space-y-4 max-w-md">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-lg border border-separator bg-transparent px-3 py-1.5 text-sm outline-none focus:border-accent" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl border border-separator bg-surface p-6 shadow-[var(--shadow-modal)]">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-xl font-bold flex items-center gap-2"><Settings className="w-5 h-5" /> Edit Channel</h2>
+          <button type="button" aria-label="Close" onClick={onClose} className="cursor-pointer text-faint hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Description</label>
-          <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What is this channel about?" className="w-full rounded-lg border border-separator bg-transparent px-3 py-1.5 text-sm outline-none focus:border-accent" />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Channel Image</label>
-          <div className="flex items-center gap-3">
-            {img ? (
-              <img src={img} alt="Channel avatar" className="w-10 h-10 rounded-lg object-cover bg-muted" />
-            ) : (
-              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-faint">
-                <ImageIcon className="w-5 h-5" />
-              </div>
-            )}
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
-            <button 
-              type="button" 
-              onClick={() => fileInputRef.current?.click()} 
-              disabled={isUploading}
-              className="px-3 py-1.5 text-xs font-medium border border-separator rounded-lg hover:bg-hover transition disabled:opacity-50"
-            >
-              {isUploading ? "Uploading..." : "Upload Image"}
-            </button>
-            {img && (
-              <button type="button" onClick={() => setImg("")} className="text-xs text-danger hover:underline">Remove</button>
-            )}
+        
+        <div className="flex items-center gap-4 mb-6">
+          <EditableAvatar name={name || "Channel"} url={img} workspaceId={ws} onChange={setImg} size={64} />
+          <div className="flex-1">
+            <input 
+              autoFocus
+              value={name} 
+              onChange={(e) => setName(e.target.value)} 
+              placeholder="e.g. general" 
+              className="w-full rounded-lg border border-separator bg-transparent px-3 py-2 text-sm outline-none focus:border-accent" 
+            />
           </div>
         </div>
-        <button type="button" onClick={() => update.mutate()} disabled={update.isPending || !name.trim() || isUploading} className="w-full cursor-pointer rounded-lg bg-accent py-2 text-sm font-medium text-accent-foreground transition hover:brightness-110 disabled:opacity-50">Save Changes</button>
+        
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="cursor-pointer rounded-lg px-4 py-2 text-sm font-medium hover:bg-hover transition">Cancel</button>
+          <button type="button" onClick={() => update.mutate()} disabled={update.isPending || !name.trim()} className="cursor-pointer rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:brightness-110 disabled:opacity-50">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateChannelDialog({ ws, onClose, onCreated }: { ws: string; onClose: () => void; onCreated: (ch: Channel) => void }) {
+  const [name, setName] = useState("");
+  const [img, setImg] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: () => createChannel(ws, { name, imageUrl: img || undefined, description: undefined }),
+    onSuccess: onCreated
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl border border-separator bg-surface p-6 shadow-[var(--shadow-modal)]">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-xl font-bold">Create Channel</h2>
+          <button type="button" aria-label="Close" onClick={onClose} className="cursor-pointer text-faint hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+        
+        <div className="flex items-center gap-4 mb-6">
+          <EditableAvatar name={name || "Channel"} url={img} workspaceId={ws} onChange={setImg} size={64} />
+          <div className="flex-1">
+            <input 
+              autoFocus
+              value={name} 
+              onChange={(e) => setName(e.target.value)} 
+              placeholder="e.g. general" 
+              className="w-full rounded-lg border border-separator bg-transparent px-3 py-2 text-sm outline-none focus:border-accent" 
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="cursor-pointer rounded-lg px-4 py-2 text-sm font-medium hover:bg-hover transition">Cancel</button>
+          <button type="button" onClick={() => create.mutate()} disabled={create.isPending || !name.trim()} className="cursor-pointer rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:brightness-110 disabled:opacity-50">Create Channel</button>
+        </div>
       </div>
     </div>
   );

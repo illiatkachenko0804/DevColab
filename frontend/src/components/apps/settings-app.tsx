@@ -5,6 +5,7 @@ import { Bell, Check, FolderKanban, ImageIcon, Monitor, Moon, Paintbrush, Pencil
 import { useTheme } from "next-themes";
 import { useRef, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
+import { EditableAvatar } from "@/components/ui/editable-avatar";
 import { PasswordStrength } from "@/components/auth/password-strength";
 import { authErrorMessage, updateProfile, setPassword, setupTwoFactor, enableTwoFactor, disableTwoFactor } from "@/lib/auth";
 import { evaluatePassword } from "@/lib/password";
@@ -24,8 +25,10 @@ import {
   type ProjectRole,
   type ProjectSettings,
 } from "@/lib/project-settings";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { listMyWorkspaces } from "@/lib/workspaces";
+import { listMyWorkspaces, createWorkspace } from "@/lib/workspaces";
 import { useOS } from "@/stores/os";
 
 const CATEGORIES = [
@@ -34,6 +37,7 @@ const CATEGORIES = [
   { id: "appearance", label: "Appearance", icon: Paintbrush, color: "var(--app-snippets)" },
   { id: "notifications", label: "Notifications", icon: Bell, color: "var(--app-projects)" },
   { id: "project", label: "Project", icon: FolderKanban, color: "var(--app-members)" },
+  { id: "new_project", label: "New Project", icon: Plus, color: "var(--app-projects)" },
 ] as const;
 
 const ACCENTS = [
@@ -86,8 +90,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputClass = "h-9 w-full rounded-lg border border-separator bg-surface px-3 text-sm outline-none focus:border-accent disabled:opacity-60";
-const selectClass = "h-9 w-full cursor-pointer rounded-lg border border-separator bg-surface px-3 text-sm outline-none focus:border-accent disabled:opacity-60";
-const textareaClass = "w-full resize-none rounded-lg border border-separator bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60";
 
 function SwitchControl({ value, disabled, onChange, label }: { value: boolean; disabled?: boolean; onChange: (value: boolean) => void; label: string }) {
   return (
@@ -117,86 +119,7 @@ function PermissionSwitch({ permission, value, disabled, onChange }: { permissio
   );
 }
 
-function EditableAvatar({
-  name,
-  url,
-  workspaceId,
-  disabled,
-  size = 72,
-  onChange,
-}: {
-  name: string;
-  url: string | null;
-  workspaceId?: string | null;
-  disabled?: boolean;
-  size?: number;
-  onChange: (url: string | null) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const canUpload = !!workspaceId && !disabled && !uploading;
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !workspaceId) return;
-    try {
-      setUploading(true);
-      const uploaded = await uploadFile(workspaceId, file, true, true);
-      onChange(fileUrl(uploaded.id));
-      setOpen(false);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <div className="relative inline-flex">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        className="group relative cursor-pointer disabled:cursor-default"
-        aria-label="Edit image"
-      >
-        <Avatar name={name} url={url} size={size} />
-        {!disabled && (
-          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/35 opacity-0 transition group-hover:opacity-100">
-            <Pencil className="h-4 w-4 text-white" />
-          </span>
-        )}
-      </button>
-      <input ref={inputRef} type="file" className="hidden" accept="image/*" onChange={handleUpload} />
-      {open && !disabled && (
-        <div className="absolute left-0 top-full z-30 mt-2 w-44 rounded-lg border border-separator bg-surface p-1 shadow-[var(--shadow-card)]">
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={!canUpload}
-            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-hover disabled:cursor-default disabled:opacity-50"
-          >
-            <ImageIcon className="h-4 w-4" />
-            {uploading ? "Uploading..." : url ? "Edit image" : "Set image"}
-          </button>
-          {url && (
-            <button
-              type="button"
-              onClick={() => {
-                onChange(null);
-                setOpen(false);
-              }}
-              className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-danger hover:bg-danger/10"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete image
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function RoleDialog({
   role,
@@ -434,7 +357,22 @@ function ProjectSettingsForm({
           </div>
           <div className="grid grid-cols-1 gap-3">
             <Field label="Project name"><input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManageProject} className={inputClass} /></Field>
-            <Field label="Description"><textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canManageProject} rows={3} className={textareaClass} /></Field>
+            <Field label="Description">
+              {canManageProject ? (
+                <RichTextEditor 
+                  initialValue={description}
+                  onSave={(val) => setDescription(val)}
+                  onCancel={undefined}
+                  placeholder="Project description..."
+                  minHeight="80px"
+                  saveLabel="Done"
+                />
+              ) : (
+                <div className="rounded-lg border border-separator bg-surface p-3 text-sm opacity-60 min-h-[80px]">
+                  {description}
+                </div>
+              )}
+            </Field>
           </div>
         </div>
 
@@ -444,20 +382,30 @@ function ProjectSettingsForm({
             <Field label="Task key prefix"><input value={taskKeyPrefix} onChange={(e) => setTaskKeyPrefix(e.target.value.toUpperCase())} disabled={!canManageProject} placeholder="DEV" className={inputClass} /></Field>
             <Field label="Default sprint length"><input type="number" min={1} max={90} value={defaultSprintDays} onChange={(e) => setDefaultSprintDays(e.target.value)} disabled={!canManageProject} className={inputClass} /></Field>
             <Field label="Default task type">
-              <select value={defaultTaskType} onChange={(e) => setDefaultTaskType(e.target.value as ProjectSettings["defaultTaskType"])} disabled={!canManageProject} className={selectClass}>
-                <option value="TASK">Task</option>
-                <option value="BUG">Bug</option>
-                <option value="STORY">Story</option>
-                <option value="EPIC">Epic</option>
-              </select>
+              <Select 
+                value={defaultTaskType} 
+                onChange={(val) => setDefaultTaskType(val as any)} 
+                disabled={!canManageProject}
+                options={[
+                  { label: "Task", value: "TASK" },
+                  { label: "Bug", value: "BUG" },
+                  { label: "Story", value: "STORY" },
+                  { label: "Epic", value: "EPIC" }
+                ]}
+              />
             </Field>
             <Field label="Default priority">
-              <select value={defaultTaskPriority} onChange={(e) => setDefaultTaskPriority(e.target.value as ProjectSettings["defaultTaskPriority"])} disabled={!canManageProject} className={selectClass}>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-                <option value="URGENT">Urgent</option>
-              </select>
+              <Select 
+                value={defaultTaskPriority} 
+                onChange={(val) => setDefaultTaskPriority(val as any)} 
+                disabled={!canManageProject}
+                options={[
+                  { label: "Low", value: "LOW" },
+                  { label: "Medium", value: "MEDIUM" },
+                  { label: "High", value: "HIGH" },
+                  { label: "Urgent", value: "URGENT" }
+                ]}
+              />
             </Field>
           </div>
         </div>
@@ -466,15 +414,23 @@ function ProjectSettingsForm({
           <h3 className="mb-3 text-sm font-semibold text-muted">Access</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Invite policy">
-              <select value={invitePolicy} onChange={(e) => setInvitePolicy(e.target.value as ProjectSettings["invitePolicy"])} disabled={!canManageProject} className={selectClass}>
-                <option value="ADMINS">Admins only</option>
-                <option value="MAINTAINERS">Admins and maintainers</option>
-              </select>
+              <Select 
+                value={invitePolicy} 
+                onChange={(val) => setInvitePolicy(val as any)} 
+                disabled={!canManageProject}
+                options={[
+                  { label: "Admins only", value: "ADMINS" },
+                  { label: "Admins and maintainers", value: "MAINTAINERS" }
+                ]}
+              />
             </Field>
             <Field label="Default role">
-              <select value={defaultRole} onChange={(e) => setDefaultRole(e.target.value)} disabled={!canManageProject} className={selectClass}>
-                {settings.roles.map((role) => <option key={role.id} value={roleValue(role)}>{role.name}</option>)}
-              </select>
+              <Select 
+                value={defaultRole} 
+                onChange={(val) => setDefaultRole(val)} 
+                disabled={!canManageProject}
+                options={settings.roles.map((role) => ({ label: role.name, value: roleValue(role) }))}
+              />
             </Field>
           </div>
         </div>
@@ -997,8 +953,66 @@ export function SettingsApp() {
           {cat === "project" && (
             activeWorkspace ? <ProjectPane ws={activeWorkspace} /> : <p className="text-sm text-muted">No active project.</p>
           )}
+
+          {cat === "new_project" && <NewProjectPane onCreated={() => setCat("project")} />}
         </div>
       </div>
     </div>
+  );
+}
+
+function NewProjectPane({ onCreated }: { onCreated: () => void }) {
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const qc = useQueryClient();
+  const setWorkspace = useOS((s) => s.setWorkspace);
+
+  const create = useMutation({
+    mutationFn: () => createWorkspace(name, desc || undefined),
+    onSuccess: (ws) => {
+      qc.invalidateQueries({ queryKey: ["workspaces"] });
+      setWorkspace(ws.id);
+      onCreated();
+    }
+  });
+
+  return (
+    <section>
+      <h2 className="mb-4 text-lg font-semibold">Create New Project</h2>
+      <div className="rounded-xl border border-separator bg-surface p-6 shadow-[var(--shadow-card)]">
+        <div className="space-y-4">
+          <Field label="Project Name">
+            <input
+              type="text"
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. My Awesome Startup"
+              className="w-full rounded-lg border border-separator bg-transparent px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+          </Field>
+          <Field label="Description (Optional)">
+            <RichTextEditor 
+              initialValue={desc}
+              onSave={(val) => setDesc(val)}
+              onCancel={undefined}
+              placeholder="What is this project about?"
+              minHeight="80px"
+              saveLabel="Done"
+            />
+          </Field>
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => create.mutate()}
+              disabled={create.isPending || name.trim().length < 2}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
+            >
+              {create.isPending ? "Creating..." : "Create Project"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

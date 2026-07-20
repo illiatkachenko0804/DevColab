@@ -1,14 +1,8 @@
 package com.devcollab.file;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,21 +23,16 @@ public class FileService {
     private final FileMemberRepository fileMembers;
     private final UserRepository users;
     private final WorkspaceGuard guard;
-    private final Path root;
+    private final StorageProvider storage;
 
     public FileService(
             FileRepository files, FileMemberRepository fileMembers, UserRepository users, WorkspaceGuard guard,
-            @Value("${app.storage.dir:uploads}") String dir) {
+            StorageProvider storage) {
         this.files = files;
         this.fileMembers = fileMembers;
         this.users = users;
         this.guard = guard;
-        this.root = Path.of(dir).toAbsolutePath().normalize();
-        try {
-            Files.createDirectories(root);
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot create storage dir " + root, e);
-        }
+        this.storage = storage;
     }
 
     @Transactional
@@ -60,8 +49,8 @@ public class FileService {
 
         String storageKey = UUID.randomUUID().toString();
         try {
-            Files.copy(file.getInputStream(), root.resolve(storageKey));
-        } catch (IOException e) {
+            storage.store(storageKey, file.getInputStream(), file.getSize(), file.getContentType());
+        } catch (Exception e) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to store file");
         }
 
@@ -163,7 +152,11 @@ public class FileService {
 
     public Resource resource(StoredFile f) {
         if (f.isFolder()) throw ApiException.badRequest("Cannot download a folder");
-        return new FileSystemResource(root.resolve(f.getStorageKey()));
+        try {
+            return storage.resource(f.getStorageKey());
+        } catch (Exception e) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to retrieve file");
+        }
     }
 
     @Transactional
@@ -174,8 +167,8 @@ public class FileService {
         }
         if (!f.isFolder()) {
             try {
-                Files.deleteIfExists(root.resolve(f.getStorageKey()));
-            } catch (IOException ignored) {
+                storage.delete(f.getStorageKey());
+            } catch (Exception ignored) {
             }
         }
         files.delete(f);

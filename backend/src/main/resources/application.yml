@@ -82,8 +82,14 @@ app:
     # other devices on the network can reach the API. Override via CORS_ALLOWED_ORIGINS.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:*,http://192.168.1.97:*}
   storage:
-    # Where uploaded files are stored. Swap for Supabase Storage (S3) later.
+    type: ${STORAGE_TYPE:local} # local or s3
     dir: ${STORAGE_DIR:uploads}
+    s3:
+      endpoint: ${S3_ENDPOINT:https://<account_id>.r2.cloudflarestorage.com}
+      region: ${S3_REGION:auto}
+      access-key: ${S3_ACCESS_KEY:my-access-key}
+      secret-key: ${S3_SECRET_KEY:my-secret-key}
+      bucket-name: ${S3_BUCKET:devcollab}
 
 springdoc:
   swagger-ui:

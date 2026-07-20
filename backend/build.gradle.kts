@@ -41,6 +41,10 @@ dependencies {
 	// Rate limiting
 	implementation("com.bucket4j:bucket4j-core:8.10.1")
 
+	// AWS S3 SDK (used for Cloudflare R2 / S3 storage)
+	implementation(platform("software.amazon.awssdk:bom:2.25.11"))
+	implementation("software.amazon.awssdk:s3")
+
 	// TOTP 2FA
 	implementation("dev.samstevens.totp:totp:1.7.1")
 

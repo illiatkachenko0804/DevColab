@@ -22,6 +22,7 @@ spring:
 
   data:
     redis:
+      url: ${REDIS_URL:redis://localhost:6379}
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
@@ -36,8 +37,8 @@ spring:
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME:illia.tkachenko.0804@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:wrfb ylgm uvfw hboh}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -52,8 +53,8 @@ spring:
           github:
             # Real GitHub login activates once these are set. "disabled" lets
             # the app boot without credentials (email/password still works).
-            client-id: ${GITHUB_CLIENT_ID:Ov23ligMUFCmgiKI4DBF}
-            client-secret: ${GITHUB_CLIENT_SECRET:6640f9d267b985230225deb8699930e5e50a241b}
+            client-id: ${GITHUB_CLIENT_ID:}
+            client-secret: ${GITHUB_CLIENT_SECRET:}
             scope: read:user,user:email
 
 server:

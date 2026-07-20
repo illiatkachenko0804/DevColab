@@ -18,6 +18,7 @@ import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.MembershipRepository;
 import com.devcollab.workspace.Membership;
+import com.devcollab.workspace.MemberService;
 import java.util.Map;
 
 @Service
@@ -28,14 +29,16 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final MembershipRepository memberships;
     private final SimpMessagingTemplate broker;
+    private final MemberService memberService;
 
     public AuthService(UserRepository users, EmailVerificationService verification, PasswordEncoder encoder,
-                       MembershipRepository memberships, SimpMessagingTemplate broker) {
+                       MembershipRepository memberships, SimpMessagingTemplate broker, MemberService memberService) {
         this.users = users;
         this.verification = verification;
         this.encoder = encoder;
         this.memberships = memberships;
         this.broker = broker;
+        this.memberService = memberService;
     }
 
     @Transactional
@@ -76,7 +79,11 @@ public class AuthService {
         User user = users.findByEmailIgnoreCase(normalized)
                 .orElseThrow(() -> ApiException.badRequest("Account not found"));
         user.setEmailVerified(true);
-        return users.save(user);
+        User saved = users.save(user);
+        
+        memberService.applyPendingInvitations(saved.getEmail(), saved.getId());
+        
+        return saved;
     }
 
     public SentCode resend(String email) {

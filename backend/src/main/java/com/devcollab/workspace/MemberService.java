@@ -18,6 +18,7 @@ import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
 import com.devcollab.workspace.dto.MemberResponse;
 import com.devcollab.activity.ActivityService;
+import com.devcollab.email.EmailService;
 
 @Service
 public class MemberService {
@@ -32,12 +33,14 @@ public class MemberService {
     private final ChannelRepository channels;
     private final ChannelParticipantRepository channelParticipants;
     private final ActivityService activities;
+    private final WorkspaceInvitationRepository workspaceInvitations;
+    private final EmailService emailService;
 
     public MemberService(
             MembershipRepository memberships, UserRepository users, WorkspaceRepository workspaces,
             WorkspaceGuard guard, NotificationService notifications, SimpMessagingTemplate broker,
             WorkspaceService workspaceService, ChannelRepository channels, ChannelParticipantRepository channelParticipants,
-            ActivityService activities) {
+            ActivityService activities, WorkspaceInvitationRepository workspaceInvitations, EmailService emailService) {
         this.memberships = memberships;
         this.users = users;
         this.workspaces = workspaces;
@@ -48,6 +51,8 @@ public class MemberService {
         this.channels = channels;
         this.channelParticipants = channelParticipants;
         this.activities = activities;
+        this.workspaceInvitations = workspaceInvitations;
+        this.emailService = emailService;
     }
 
     @Transactional(readOnly = true)
@@ -81,6 +86,25 @@ public class MemberService {
         guard.requirePermission(workspaceId, requesterId, "inviteMembers");
         User user = resolve(query);
         if (user == null) {
+            String q = query.trim();
+            if (q.contains("@") && !q.startsWith("@") && q.matches("^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$")) {
+                if (workspaceInvitations.existsByWorkspaceIdAndEmailIgnoreCase(workspaceId, q)) {
+                    throw ApiException.conflict("An invitation was already sent to " + q);
+                }
+                WorkspaceInvitation inv = new WorkspaceInvitation();
+                inv.setWorkspaceId(workspaceId);
+                inv.setEmail(q.toLowerCase());
+                inv.setInviterId(requesterId);
+                inv.setRole(workspaceService.defaultRoleFor(workspaceId));
+                workspaceInvitations.save(inv);
+                
+                User inviter = users.findById(requesterId).orElse(null);
+                String inviterName = inviter != null ? inviter.getDisplayName() : "Someone";
+                String wsName = workspaces.findById(workspaceId).map(Workspace::getName).orElse("a project");
+                emailService.sendWorkspaceInvitation(q, inviterName, wsName);
+                
+                return new MemberResponse("pending-" + UUID.randomUUID(), "Pending Invite", "", q.toLowerCase(), null, inv.getRole());
+            }
             throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND,
                     "No DevCollab user matches “" + query.trim() + "”. Ask them to sign up first.");
         }
@@ -178,5 +202,40 @@ public class MemberService {
         }
         String tag = q.startsWith("@") ? q.substring(1) : q;
         return users.findByDevTag(tag.toLowerCase()).orElse(null);
+    }
+
+    @Transactional
+    public void applyPendingInvitations(String email, UUID userId) {
+        List<WorkspaceInvitation> invites = workspaceInvitations.findByEmailIgnoreCase(email);
+        if (invites.isEmpty()) return;
+
+        User user = users.findById(userId).orElse(null);
+        if (user == null) return;
+
+        for (WorkspaceInvitation inv : invites) {
+            if (!memberships.existsByWorkspaceIdAndUserId(inv.getWorkspaceId(), userId)) {
+                Membership m = new Membership();
+                m.setWorkspaceId(inv.getWorkspaceId());
+                m.setUserId(userId);
+                m.setRole(inv.getRole());
+                memberships.save(m);
+
+                channels.findByWorkspaceIdAndName(inv.getWorkspaceId(), "general").ifPresent(general -> {
+                    ChannelParticipant p = new ChannelParticipant();
+                    p.setChannelId(general.getId());
+                    p.setUserId(userId);
+                    channelParticipants.save(p);
+                });
+
+                String wsName = workspaces.findById(inv.getWorkspaceId()).map(Workspace::getName).orElse("a project");
+                notifications.create(userId, inv.getWorkspaceId(), "members", "project_invite",
+                        Map.of("title", "You were added to " + wsName));
+                broker.convertAndSend("/topic/workspace." + inv.getWorkspaceId() + ".members",
+                        Map.of("type", "MEMBER_ADDED", "userId", userId.toString()));
+
+                activities.log(inv.getWorkspaceId(), userId, "join", "joined", "joined the project via invitation", userId.toString());
+            }
+        }
+        workspaceInvitations.deleteByEmailIgnoreCase(email);
     }
 }

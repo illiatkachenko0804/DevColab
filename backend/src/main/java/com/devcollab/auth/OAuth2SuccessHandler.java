@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import com.devcollab.user.User;
 import com.devcollab.user.UserRepository;
+import com.devcollab.workspace.MemberService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,6 +27,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final JwtService jwt;
     private final CookieService cookies;
     private final AuthService authService;
+    private final MemberService memberService;
     private final String frontendUrl;
 
     public OAuth2SuccessHandler(
@@ -33,11 +35,13 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             JwtService jwt,
             CookieService cookies,
             AuthService authService,
+            MemberService memberService,
             @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
         this.users = users;
         this.jwt = jwt;
         this.cookies = cookies;
         this.authService = authService;
+        this.memberService = memberService;
         this.frontendUrl = frontendUrl;
     }
 
@@ -72,6 +76,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         user.setAvatarUrl(avatar);
         user.setEmailVerified(true); // GitHub identities are pre-verified
         user = users.save(user);
+
+        memberService.applyPendingInvitations(user.getEmail(), user.getId());
 
         if (user.isTwoFactorEnabled()) {
             // Issue a temporary 2FA token instead of access/refresh tokens

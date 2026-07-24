@@ -40,6 +40,7 @@ public class SecurityConfig {
                                 "/actuator/**",
                                 "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
                                 "/api/ping",
+                                "/error",
                                 "/api/auth/register",
                                 "/api/auth/verify-email",
                                 "/api/auth/resend-code",

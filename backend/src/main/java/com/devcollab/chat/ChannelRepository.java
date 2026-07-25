@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ChannelRepository extends JpaRepository<Channel, UUID> {
 
+    List<Channel> findByWorkspaceId(UUID workspaceId);
+
     List<Channel> findByWorkspaceIdAndTypeOrderByCreatedAtAsc(UUID workspaceId, String type);
 
     Optional<Channel> findByWorkspaceIdAndName(UUID workspaceId, String name);

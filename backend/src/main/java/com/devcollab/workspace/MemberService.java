@@ -124,10 +124,12 @@ public class MemberService {
         memberships.save(m);
 
         channels.findByWorkspaceIdAndName(workspaceId, "general").ifPresent(general -> {
-            ChannelParticipant p = new ChannelParticipant();
-            p.setChannelId(general.getId());
-            p.setUserId(user.getId());
-            channelParticipants.save(p);
+            if (!channelParticipants.existsByChannelIdAndUserId(general.getId(), user.getId())) {
+                ChannelParticipant p = new ChannelParticipant();
+                p.setChannelId(general.getId());
+                p.setUserId(user.getId());
+                channelParticipants.save(p);
+            }
         });
 
         String wsName = workspaces.findById(workspaceId).map(Workspace::getName).orElse("a project");
@@ -168,6 +170,10 @@ public class MemberService {
             throw ApiException.forbidden("Users with the Admin role cannot be removed");
         }
         memberships.delete(membership);
+        
+        channels.findByWorkspaceId(workspaceId).forEach(c -> {
+            channelParticipants.deleteByChannelIdAndUserId(c.getId(), targetUuid);
+        });
         broker.convertAndSend("/topic/workspace." + workspaceId + ".members",
                 Map.of("type", "MEMBER_REMOVED", "userId", targetUuid.toString()));
 
@@ -237,10 +243,12 @@ public class MemberService {
                 memberships.save(m);
 
                 channels.findByWorkspaceIdAndName(inv.getWorkspaceId(), "general").ifPresent(general -> {
-                    ChannelParticipant p = new ChannelParticipant();
-                    p.setChannelId(general.getId());
-                    p.setUserId(userId);
-                    channelParticipants.save(p);
+                    if (!channelParticipants.existsByChannelIdAndUserId(general.getId(), userId)) {
+                        ChannelParticipant p = new ChannelParticipant();
+                        p.setChannelId(general.getId());
+                        p.setUserId(userId);
+                        channelParticipants.save(p);
+                    }
                 });
 
                 String wsName = workspaces.findById(inv.getWorkspaceId()).map(Workspace::getName).orElse("a project");

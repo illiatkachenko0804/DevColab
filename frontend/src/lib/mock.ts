@@ -45,7 +45,7 @@ export interface Workspace {
 }
 
 export const workspaces: Workspace[] = [
-  { id: "w1", name: "DevCollab Core", initial: "DC", accent: "#0a84ff" },
+  { id: "w1", name: "Collabsy Core", initial: "CC", accent: "#0a84ff" },
   { id: "w2", name: "Orbit Mobile", initial: "OM", accent: "#bf5af2" },
   { id: "w3", name: "Atlas API", initial: "AA", accent: "#30d158" },
 ];
@@ -136,7 +136,7 @@ const L = {
 };
 
 export const WORKSPACE_DATA: Record<string, WorkspaceData> = {
-  // ---------------------------------------------------------------- DevCollab
+  // ---------------------------------------------------------------- Collabsy
   w1: {
     memberIds: ["u1", "u2", "u3", "u4", "u5", "u6"],
     channels: [
@@ -156,7 +156,7 @@ export const WORKSPACE_DATA: Record<string, WorkspaceData> = {
         { id: "m6", channelId: "w1-frontend", userId: "u3", body: "Shipping snippet syntax highlighting next.", at: ago(4) },
       ],
       "w1-general": [
-        { id: "m7", channelId: "w1-general", userId: "u1", body: "Welcome to DevCollab Core. Standup at 10:00.", at: ago(180) },
+        { id: "m7", channelId: "w1-general", userId: "u1", body: "Welcome to Collabsy Core. Standup at 10:00.", at: ago(180) },
         { id: "m8", channelId: "w1-general", userId: "u6", body: "Thanks! Excited to be here.", at: ago(70) },
       ],
       "w1-design": [
@@ -197,7 +197,7 @@ export const WORKSPACE_DATA: Record<string, WorkspaceData> = {
     notifications: [
       { id: "n1", app: "chat", title: "Maria Kovac", body: "mentioned you in #frontend", at: ago(6), read: false },
       { id: "n2", app: "projects", title: "Task assigned", body: "“Multiple draggable windows” is now yours", at: ago(22), read: false },
-      { id: "n3", app: "members", title: "Aisha Bello", body: "joined DevCollab Core", at: ago(64), read: false },
+      { id: "n3", app: "members", title: "Aisha Bello", body: "joined Collabsy Core", at: ago(64), read: false },
     ],
   },
 

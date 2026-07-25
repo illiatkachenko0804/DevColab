@@ -66,7 +66,7 @@ server:
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
   mail:
-    from: ${APP_MAIL_FROM:DevCollab <${SPRING_MAIL_USERNAME:your.email@gmail.com}>}
+    from: ${APP_MAIL_FROM:Collabsy <no-reply@collabsy.space>}
   jwt:
     # Override in real environments. Must be >= 32 bytes for HS256.
     secret: ${JWT_SECRET:dev-only-secret-change-me-0123456789-0123456789}

@@ -157,7 +157,7 @@ export function Desktop() {
 
   // Restore the saved accent color.
   useEffect(() => {
-    const saved = localStorage.getItem("devcollab.accent");
+    const saved = localStorage.getItem("collabsy.accent");
     if (saved) setAccent(saved);
   }, [setAccent]);
 

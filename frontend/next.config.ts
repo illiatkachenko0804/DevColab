@@ -10,15 +10,6 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname),
   },
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        // Proxy to the real backend url. 
-        destination: `${process.env.BACKEND_URL || "http://localhost:8080"}/api/:path*`,
-      },
-    ];
-  },
 };
 
 export default nextConfig;

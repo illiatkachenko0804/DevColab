@@ -198,9 +198,9 @@ export function LoginScreen() {
         <div className="p-7">
           <div className="mb-6 flex flex-col items-center text-center">
             <span className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-accent text-2xl font-bold text-white shadow-lg">
-              D
+              C
             </span>
-            <h1 className="text-xl font-semibold tracking-tight">Welcome to DevCollab</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Welcome to Collabsy</h1>
             <p className="mt-1 text-sm text-muted">
               {step === "verify"
                 ? "Enter the code we sent you"

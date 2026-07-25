@@ -3,7 +3,7 @@ import type { AppId } from "@/lib/apps";
 import type { AuthUser } from "@/lib/auth";
 import type { Workspace } from "@/lib/workspaces";
 
-const WS_KEY = "devcollab.workspace";
+const WS_KEY = "collabsy.workspace";
 
 export interface WinState {
   app: AppId;
@@ -151,7 +151,7 @@ export const useOS = create<OSState>((set) => ({
 
   setAccent: (c) => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("devcollab.accent", c);
+      localStorage.setItem("collabsy.accent", c);
       document.documentElement.style.setProperty("--accent", c);
     }
     set({ accent: c });

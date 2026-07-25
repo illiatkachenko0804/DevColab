@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DevCollab",
+  title: "Collabsy",
   description:
     "Real-time developer collaboration — spaces, chat, Kanban, and snippets.",
 };

@@ -30,7 +30,7 @@ public class EmailService {
     public EmailService(
             ObjectProvider<JavaMailSender> mailSender,
             @Value("${app.mail.from:Collabsy <no-reply@collabsy.space>}") String from,
-            @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
+            @Value("${app.frontend-url:https://collabsy.space}") String frontendUrl) {
         this.mailSender = mailSender;
         this.from = from;
         this.frontendUrl = frontendUrl;

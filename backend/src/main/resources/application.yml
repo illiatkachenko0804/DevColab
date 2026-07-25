@@ -64,7 +64,7 @@ server:
   port: ${SERVER_PORT:8080}
 
 app:
-  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  frontend-url: ${FRONTEND_URL:https://collabsy.space}
   mail:
     from: ${APP_MAIL_FROM:Collabsy <no-reply@collabsy.space>}
   jwt:

@@ -20,6 +20,7 @@ function ensure(): Client {
   client = new Client({
     brokerURL: WS_URL,
     reconnectDelay: 3000,
+    debug: (str) => console.log("[STOMP]", str),
     onConnect: () => {
       // (Re)subscribe everything on every connect.
       subs.forEach((s) => {

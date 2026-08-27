@@ -8,6 +8,8 @@
 .idea/
 *.iml
 .vscode/
+.agents/
+.claude/
 
 # Node (frontend keeps its own .gitignore too)
 node_modules/

@@ -5,10 +5,11 @@ import {
   useMotionValue,
   useSpring,
   useTransform,
+  AnimatePresence,
   type MotionValue,
 } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { APPS, type AppId, type AppMeta } from "@/lib/apps";
 import { listChannels } from "@/lib/chat";
 import { listNotifications } from "@/lib/notifications";
@@ -24,16 +25,23 @@ function DockIcon({ app, mouseX, badge }: { app: AppMeta; mouseX: MotionValue<nu
   const windows = useOS((s) => s.windows);
   const running = windows.some((w) => w.app === app.id);
   const Icon = app.icon;
+  const [isHovered, setIsHovered] = useState(false);
 
   const distance = useTransform(mouseX, (val) => {
     const b = ref.current?.getBoundingClientRect() ?? { x: 0, width: ICON };
     return val - b.x - b.width / 2;
   });
   const widthSync = useTransform(distance, [-RANGE, 0, RANGE], [ICON, MAX, ICON]);
-  const width = useSpring(widthSync, { stiffness: 340, damping: 24, mass: 0.5 });
+  
+  // Apple Design: Use bounce and duration for momentum interactions
+  const width = useSpring(widthSync, { bounce: 0.15, duration: 0.3 });
 
   return (
-    <div className="group/dock relative flex flex-col items-center">
+    <div 
+      className="group/dock relative flex flex-col items-center"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <motion.div ref={ref} style={{ width, height: ICON }} className="relative">
         <motion.button
           type="button"
@@ -42,9 +50,19 @@ function DockIcon({ app, mouseX, badge }: { app: AppMeta; mouseX: MotionValue<nu
           style={{ width, height: width }}
           className="absolute bottom-0 left-0 flex items-center justify-center rounded-[22%] border border-white/15 shadow-md"
         >
-          <span className="glass-strong pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-separator px-2 py-1 text-xs font-medium text-foreground opacity-0 shadow-[var(--shadow-pop)] transition-opacity group-hover/dock:opacity-100">
-            {app.label}
-          </span>
+          <AnimatePresence>
+            {isHovered && (
+              <motion.span 
+                initial={{ opacity: 0, y: 10, scale: 0.9, filter: "blur(2px)" }}
+                animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, y: 10, scale: 0.9, filter: "blur(2px)" }}
+                transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+                className="glass-strong pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-separator px-2 py-1 text-xs font-medium text-foreground shadow-[var(--shadow-pop)]"
+              >
+                {app.label}
+              </motion.span>
+            )}
+          </AnimatePresence>
           <span
             className="flex h-full w-full items-center justify-center rounded-[22%]"
             style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${app.accent} 88%, white) 0%, ${app.accent} 100%)` }}
